@@ -1,0 +1,149 @@
+:root {
+  --bg: #0f0f10;
+  --surface: #19191d;
+  --text: #f3f3f5;
+  --muted: #babac2;
+  --accent: #7ce6ff;
+  --line: #2b2c31;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 12% 8%, #2e3149 0, transparent 32%),
+    radial-gradient(circle at 85% 3%, #203d58 0, transparent 35%),
+    var(--bg);
+}
+
+.page {
+  width: min(760px, calc(100% - 2rem));
+  margin: 1.6rem auto 3rem;
+}
+
+.back-link {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.back-link:hover,
+a:hover {
+  color: var(--accent);
+}
+
+.hero {
+  text-align: center;
+  margin-top: 1.25rem;
+}
+
+.eyebrow {
+  color: var(--muted);
+  margin: 0.4rem 0 1rem;
+}
+
+.app-icon {
+  width: 96px;
+  height: 96px;
+  border-radius: 24px;
+  object-fit: cover;
+  box-shadow: 0 16px 35px rgba(0, 0, 0, 0.45);
+}
+
+h1 {
+  margin: 1rem 0 0.25rem;
+  font-size: clamp(2rem, 5vw, 2.5rem);
+}
+
+.version {
+  margin: 0;
+  color: var(--muted);
+}
+
+.subtitle {
+  margin: 1rem auto;
+  max-width: 46ch;
+  color: #d6d7de;
+}
+
+.cta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+
+.cta-row a,
+.setapp,
+.content a,
+.footer a {
+  color: var(--text);
+  text-underline-offset: 2px;
+}
+
+.setapp {
+  display: inline-block;
+  margin-bottom: 1rem;
+}
+
+.minimum {
+  color: var(--muted);
+}
+
+.minimum code {
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.15rem 0.4rem;
+}
+
+.showcase {
+  margin: 2rem 0;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #121217;
+}
+
+.showcase img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.content h3 {
+  margin: 1.6rem 0 0.55rem;
+  font-size: 1.15rem;
+}
+
+.content p {
+  margin: 0.35rem 0;
+  color: #d9dae0;
+}
+
+.footer {
+  margin-top: 2rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .page {
+    width: calc(100% - 1.2rem);
+    margin-top: 1rem;
+  }
+
+  .showcase {
+    margin: 1.25rem 0;
+    border-radius: 12px;
+  }
+}
