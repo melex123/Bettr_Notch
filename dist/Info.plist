@@ -61,6 +61,6 @@
     <string>https://raw.githubusercontent.com/melex123/Bettr_Notch/main/appcast.xml</string>
 
     <key>SUPublicEDKey</key>
-    <string>${SPARKLE_ED_KEY}</string>
+    <string>FGWjTmyqocPTh1HljEoCiwLr6YW9zRo5abc7Kcosd6M=</string>
 </dict>
 </plist>

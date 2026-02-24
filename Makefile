@@ -29,9 +29,6 @@ SPARKLE_FRAMEWORK := $(BUILD_DIR)/Sparkle.framework
 SIGN_UPDATE     := .build/artifacts/sparkle/Sparkle/bin/sign_update
 GENERATE_KEYS   := .build/artifacts/sparkle/Sparkle/bin/generate_keys
 
-# Sparkle EdDSA public key — set via env or leave empty to skip
-SPARKLE_ED_KEY  ?=
-
 # Signing — default ad-hoc (-), override for distribution
 SIGNING_IDENTITY ?= -
 
@@ -62,7 +59,6 @@ bundle: build icon ## Assemble .app bundle
 	@cp $(DIST_DIR)/PkgInfo $(APP_BUNDLE)/Contents/
 	@sed -e 's/$${VERSION}/$(VERSION)/g' \
 	     -e 's/$${BUILD_NUMBER}/$(BUILD_NUMBER)/g' \
-	     -e 's/$${SPARKLE_ED_KEY}/$(SPARKLE_ED_KEY)/g' \
 	     $(DIST_DIR)/Info.plist > $(APP_BUNDLE)/Contents/Info.plist
 	@cp $(BUILD_OUTPUT)/AppIcon.icns $(APP_BUNDLE)/Contents/Resources/AppIcon.icns
 	@echo "Embedding Sparkle.framework..."
