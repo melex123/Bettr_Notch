@@ -31,17 +31,20 @@ This document intentionally includes both:
 
 ```
 /Users/erikbartos/Desktop/Developer/notchnook
-  Package.swift
-  Makefile                                  # DMG build orchestration
+  Package.swift                             # SPM config (Sparkle 2.x dependency)
+  Makefile                                  # Build pipeline (dmg, release, generate-keys)
   VERSION                                   # Semver version (single source of truth)
+  appcast.xml                               # Sparkle update feed (auto-updated by release script)
+  UPDATE_GUIDE.md                           # Step-by-step release instructions
   Sources/notchnook/notchnook.swift
   dist/
-    Info.plist                              # App bundle metadata template
-    NotchNook.entitlements                  # Production entitlements
+    Info.plist                              # App bundle metadata (SUFeedURL, SUPublicEDKey)
+    NotchNook.entitlements                  # Entitlements (apple-events, network client)
     PkgInfo                                 # Bundle marker (APPL????)
   scripts/
     create-icns.sh                          # Generates placeholder .icns icon
     create-dmg.sh                           # Creates compressed DMG with hdiutil
+    release.sh                              # Full release: DMG + GitHub Release + appcast
   AI_PROJECT_DOCUMENTATION.md
   README.md
   .claude/launch.json
@@ -101,6 +104,24 @@ The `make dmg` pipeline:
 
 Output: `build/NotchNook-{version}.dmg` (~2 MB)
 
+## Auto-Updates (Sparkle)
+
+```bash
+make generate-keys                    # One-time: generate EdDSA keypair for Sparkle signing
+make release SPARKLE_ED_KEY="..."     # Full release: DMG + GitHub Release + appcast update
+```
+
+The `make release` pipeline:
+1. Runs `make dmg` to build the signed DMG
+2. `scripts/release.sh` signs DMG with Sparkle EdDSA (`sign_update`)
+3. Creates/uploads GitHub Release via `gh release create`
+4. Updates `appcast.xml` with new version entry (download URL, signature, size)
+5. User commits and pushes the updated appcast
+
+Appcast feed: `https://raw.githubusercontent.com/melex123/Bettr_Notch/main/appcast.xml`
+
+See `UPDATE_GUIDE.md` for step-by-step release instructions.
+
 ### Versioning
 
 - `VERSION` file at project root is the single source of truth (e.g., `1.0.0`)
@@ -119,6 +140,7 @@ Both modes use `--options runtime` (hardened runtime) and `dist/NotchNook.entitl
 ### Entitlements (`dist/NotchNook.entitlements`)
 
 - `com.apple.security.automation.apple-events` — for AppleScript media/volume control
+- `com.apple.security.network.client` — for Sparkle update feed fetching and DMG downloads
 - Not sandboxed (app uses private frameworks, CGEvent, IOKit)
 - No `get-task-allow` (debug-only, excluded from production)
 
@@ -128,6 +150,8 @@ Both modes use `--options runtime` (hardened runtime) and `dist/NotchNook.entitl
 - `NSCalendarsUsageDescription` — EventKit calendar access
 - `NSRemindersUsageDescription` — EventKit reminders access
 - `NSAppleEventsUsageDescription` — AppleScript media controls
+- `SUFeedURL` — Sparkle appcast URL (`https://raw.githubusercontent.com/melex123/Bettr_Notch/main/appcast.xml`)
+- `SUPublicEDKey` — Sparkle EdDSA public key (substituted at build time via `${SPARKLE_ED_KEY}`)
 
 ## Minimum platform
 
@@ -135,8 +159,8 @@ Both modes use `--options runtime` (hardened runtime) and `dist/NotchNook.entitl
 
 ## Dependencies
 
-- No third-party package dependencies.
-- Uses Apple frameworks:
+- [Sparkle 2.x](https://github.com/sparkle-project/Sparkle) — in-app auto-updates (SPM binary artifact)
+- Apple frameworks:
   - `AppKit`, `SwiftUI`, `Combine`,
   - `IOKit`, `IOKit.ps`,
   - `EventKit`,
@@ -169,15 +193,15 @@ NotchNook is a floating notch companion panel for MacBook displays with notch su
   - Toggle Notch
   - Move to MacBook Screen
   - Settings
+  - Check for Updates... (Sparkle)
   - Quit
 
 ### App lifecycle
 
-- `AppDelegate.applicationDidFinishLaunching`:
-  - sets app policy `.accessory`,
-  - initializes notch window controller and hover monitoring.
-- `AppDelegate.applicationWillTerminate`:
-  - calls `NotchWindowController.shared.cleanup()` for resource cleanup.
+- `AppDelegate` (`@MainActor`):
+  - owns `SPUStandardUpdaterController` (Sparkle auto-updater, starts on init)
+  - `applicationDidFinishLaunching`: sets app policy `.accessory`, initializes notch window controller and hover monitoring
+  - `applicationWillTerminate`: calls `NotchWindowController.shared.cleanup()` for resource cleanup
 
 ### Core controllers
 
@@ -440,6 +464,8 @@ Contains:
 
 - Weather: `https://wttr.in/?format=j1`
 - Ping command uses `/sbin/ping` locally.
+- Sparkle appcast: `https://raw.githubusercontent.com/melex123/Bettr_Notch/main/appcast.xml`
+- Sparkle DMG downloads: `https://github.com/melex123/Bettr_Notch/releases/download/...`
 
 ## Use of private framework
 
@@ -572,6 +598,13 @@ Recommended file decomposition:
 - toggles persist after restart,
 - profile apply/reset behaves as expected.
 
+## Auto-updates
+
+- "Check for Updates..." appears in menu bar menu,
+- clicking it opens Sparkle update dialog,
+- shows "No updates available" or connection error when no appcast entries exist,
+- after a release, existing installs detect and offer the update.
+
 ---
 
 ## 15. PRD (Product Requirements Document)
@@ -676,6 +709,19 @@ Mac users with notch displays want a fast, glanceable, low-friction utility surf
 - Placeholder icon generation via Swift + AppKit - DONE,
 - Version management via `VERSION` file + git build numbers - DONE.
 
+### M1.8 - Sparkle Auto-Updater (DONE)
+
+- Sparkle 2.x SPM dependency for in-app auto-updates - DONE
+- `SPUStandardUpdaterController` in `@MainActor AppDelegate` - DONE
+- "Check for Updates..." menu item in MenuBarExtra - DONE
+- `SUFeedURL` + `SUPublicEDKey` in Info.plist - DONE
+- Network client entitlement for Sparkle - DONE
+- `appcast.xml` in repo root (served via GitHub raw URL) - DONE
+- `make release` automation (DMG + GitHub Release + appcast update) - DONE
+- `make generate-keys` for one-time EdDSA keypair generation - DONE
+- `scripts/release.sh` full release script - DONE
+- `UPDATE_GUIDE.md` step-by-step release instructions - DONE
+
 ### M2 - Architecture cleanup
 
 - split monolith into modules,
@@ -700,6 +746,7 @@ Mac users with notch displays want a fast, glanceable, low-friction utility surf
 ## 17. Quick Code Pointers
 
 - App entry + menu bar: `notchnook.swift` top section (`NotchNookApp`)
+- Auto-updater: `AppDelegate.updaterController` (`SPUStandardUpdaterController`)
 - App lifecycle cleanup: `AppDelegate.applicationWillTerminate`
 - Window behavior: `NotchWindowController` (with `cleanup()`)
 - Preferences + profiles: `NotchPreferences`
@@ -811,6 +858,37 @@ Mac users with notch displays want a fast, glanceable, low-friction utility surf
 
 **Other:**
 - Added `build/` to `.gitignore` for Makefile output directory
+
+### 2026-02-24 - Sparkle Auto-Updater
+
+**Sparkle 2.x integration:**
+- Added Sparkle 2.x as SPM dependency (`Package.swift`)
+- `SPUStandardUpdaterController` initialized in `@MainActor AppDelegate` (starts checking on launch)
+- "Check for Updates..." button added to MenuBarExtra menu (between Settings and Quit)
+- `import Sparkle` added to main source file
+
+**Appcast and feed infrastructure:**
+- `appcast.xml` in repo root — Sparkle update feed, served via `https://raw.githubusercontent.com/melex123/Bettr_Notch/main/appcast.xml`
+- `SUFeedURL` key added to `dist/Info.plist` pointing to raw GitHub URL
+- `SUPublicEDKey` key added to `dist/Info.plist` (substituted at build time via `${SPARKLE_ED_KEY}`)
+
+**Entitlements:**
+- Added `com.apple.security.network.client` to `dist/NotchNook.entitlements` for Sparkle feed/download access
+
+**Release automation:**
+- `make release` target — runs full pipeline: DMG build + EdDSA signing + GitHub Release + appcast update
+- `make generate-keys` target — one-time EdDSA keypair generation via Sparkle's `generate_keys` tool
+- `scripts/release.sh` — automated release script (sign DMG, create/upload GitHub Release via `gh`, update `appcast.xml`)
+- Makefile `bundle` target updated to substitute `${SPARKLE_ED_KEY}` in Info.plist
+
+**Documentation:**
+- `UPDATE_GUIDE.md` — simple step-by-step guide for releasing updates
+- Updated README.md with Auto-Updates section, Distribution commands, expanded Project Structure
+- Updated AI_PROJECT_DOCUMENTATION.md with all Sparkle-related changes
+
+**Build notes:**
+- `AppDelegate` annotated with `@MainActor` for Swift 6.2 strict concurrency compatibility with `SPUStandardUpdaterController`
+- Sparkle binary artifact tools (`sign_update`, `generate_keys`) available at `.build/artifacts/sparkle/Sparkle/bin/`
 
 ---
 

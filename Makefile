@@ -3,6 +3,8 @@
 #   make dmg                              Ad-hoc signed DMG (personal use)
 #   make dmg SIGNING_IDENTITY="Dev ID..." Distribution signed DMG
 #   make bundle                           Just build .app
+#   make release                          Build DMG + create GitHub Release + update appcast
+#   make generate-keys                    Generate Sparkle EdDSA signing keys (one-time)
 #   make clean                            Remove build artifacts
 #   make help                             Show all targets
 
@@ -22,11 +24,19 @@ DMG_OUTPUT      := $(BUILD_OUTPUT)/$(APP_NAME)-$(VERSION).dmg
 DMG_STAGING     := $(BUILD_OUTPUT)/dmg-staging
 EXECUTABLE      := $(BUILD_DIR)/notchnook
 
+# Sparkle paths
+SPARKLE_FRAMEWORK := $(shell swift build --show-bin-path -c $(CONFIGURATION))/../../../checkouts/Sparkle/Sparkle.framework
+SIGN_UPDATE     := .build/artifacts/sparkle/Sparkle/bin/sign_update
+GENERATE_KEYS   := .build/artifacts/sparkle/Sparkle/bin/generate_keys
+
+# Sparkle EdDSA public key — set via env or leave empty to skip
+SPARKLE_ED_KEY  ?=
+
 # Signing — default ad-hoc (-), override for distribution
 SIGNING_IDENTITY ?= -
 
 # --- Targets ---
-.PHONY: all build icon bundle sign dmg clean help
+.PHONY: all build icon bundle sign dmg clean help release generate-keys
 
 all: dmg ## Build everything and produce DMG
 
@@ -47,10 +57,12 @@ bundle: build icon ## Assemble .app bundle
 	@rm -rf $(APP_BUNDLE)
 	@mkdir -p $(APP_BUNDLE)/Contents/MacOS
 	@mkdir -p $(APP_BUNDLE)/Contents/Resources
+	@mkdir -p $(APP_BUNDLE)/Contents/Frameworks
 	@cp $(EXECUTABLE) $(APP_BUNDLE)/Contents/MacOS/$(APP_NAME)
 	@cp $(DIST_DIR)/PkgInfo $(APP_BUNDLE)/Contents/
 	@sed -e 's/$${VERSION}/$(VERSION)/g' \
 	     -e 's/$${BUILD_NUMBER}/$(BUILD_NUMBER)/g' \
+	     -e 's/$${SPARKLE_ED_KEY}/$(SPARKLE_ED_KEY)/g' \
 	     $(DIST_DIR)/Info.plist > $(APP_BUNDLE)/Contents/Info.plist
 	@cp $(BUILD_OUTPUT)/AppIcon.icns $(APP_BUNDLE)/Contents/Resources/AppIcon.icns
 	@echo "Bundle assembled: $(APP_BUNDLE)"
@@ -71,6 +83,18 @@ dmg: sign ## Create distributable DMG
 		"$(APP_NAME)" \
 		"$(DMG_STAGING)" \
 		"$(SIGNING_IDENTITY)"
+
+release: dmg ## Build DMG + create GitHub Release + update appcast
+	bash scripts/release.sh "$(DMG_OUTPUT)" "$(VERSION)" "$(APP_NAME)"
+
+generate-keys: ## Generate Sparkle EdDSA signing keys (one-time)
+	@if [ -f "$(GENERATE_KEYS)" ]; then \
+		$(GENERATE_KEYS); \
+	else \
+		echo "Error: generate_keys not found at $(GENERATE_KEYS)"; \
+		echo "Run 'swift build -c release' first to fetch Sparkle artifacts."; \
+		exit 1; \
+	fi
 
 clean: ## Remove all build artifacts
 	rm -rf $(BUILD_OUTPUT)

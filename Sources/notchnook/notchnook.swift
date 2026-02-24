@@ -9,6 +9,7 @@ import EventKit
 import Darwin.Mach
 import Darwin
 import QuartzCore
+import Sparkle
 
 @main
 struct NotchNookApp: App {
@@ -24,6 +25,9 @@ struct NotchNookApp: App {
             }
             Button("Settings") {
                 SettingsPresenter.open()
+            }
+            Button("Check for Updates...") {
+                appDelegate.updaterController.checkForUpdates(nil)
             }
             Divider()
             Button("Quit") {
@@ -81,7 +85,14 @@ struct ClipboardEntry: Identifiable, Hashable, Codable {
     let timestamp: Date
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
         NotchWindowController.shared.show()
@@ -1652,6 +1663,7 @@ struct ExpandedNotch: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(.ultraThinMaterial)

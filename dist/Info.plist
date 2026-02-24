@@ -56,5 +56,11 @@
 
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+
+    <key>SUFeedURL</key>
+    <string>https://raw.githubusercontent.com/melex123/Bettr_Notch/main/appcast.xml</string>
+
+    <key>SUPublicEDKey</key>
+    <string>${SPARKLE_ED_KEY}</string>
 </dict>
 </plist>

@@ -48,7 +48,7 @@ swift build
 swift run
 ```
 
-No third-party dependencies — only Apple frameworks (AppKit, SwiftUI, Combine, EventKit, IOKit).
+One dependency: [Sparkle 2.x](https://sparkle-project.org/) for auto-updates. Otherwise only Apple frameworks (AppKit, SwiftUI, Combine, EventKit, IOKit).
 
 ## How It Works
 
@@ -74,11 +74,42 @@ NotchNook may request the following permissions:
 - **Automation** — for controlling Spotify, Music, and reading browser tabs
 - **Reminders** — for the mini calendar feature
 
+## Auto-Updates
+
+NotchNook includes built-in auto-updates powered by [Sparkle](https://sparkle-project.org/). Users are notified of new versions directly in the app and can update with one click.
+
+- **Check manually** — Menu bar icon > "Check for Updates..."
+- **Automatic checks** — Sparkle checks the appcast feed on launch
+
+See `UPDATE_GUIDE.md` for how to publish a new release.
+
+## Distribution
+
+```bash
+make dmg                              # Build ad-hoc signed DMG
+make dmg SIGNING_IDENTITY="Dev ID..." # Distribution signed DMG
+make release SPARKLE_ED_KEY="..."     # Full release: DMG + GitHub Release + appcast update
+make generate-keys                    # One-time: generate Sparkle EdDSA signing keys
+make clean                            # Remove build artifacts
+```
+
 ## Project Structure
 
 ```
-Package.swift                          # Swift Package Manager config
+Package.swift                          # Swift Package Manager config (+ Sparkle dep)
 Sources/notchnook/notchnook.swift      # Main application source (monolithic)
+appcast.xml                            # Sparkle update feed (auto-updated by release script)
+Makefile                               # Build pipeline (dmg, release, generate-keys)
+VERSION                                # Semver version (single source of truth)
+UPDATE_GUIDE.md                        # Step-by-step release instructions
+dist/
+  Info.plist                           # App bundle metadata (SUFeedURL, SUPublicEDKey)
+  NotchNook.entitlements               # Entitlements (apple-events, network client)
+  PkgInfo                              # Bundle marker
+scripts/
+  create-icns.sh                       # App icon generator
+  create-dmg.sh                        # DMG creator
+  release.sh                           # Full release automation (GitHub Release + appcast)
 index.html + styles.css                # Landing page (not part of the app)
 design/                                # Design reference images
 .claude/agents/                        # Claude Code agent configurations
