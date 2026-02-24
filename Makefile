@@ -67,7 +67,7 @@ bundle: build icon ## Assemble .app bundle
 	@cp $(BUILD_OUTPUT)/AppIcon.icns $(APP_BUNDLE)/Contents/Resources/AppIcon.icns
 	@echo "Embedding Sparkle.framework..."
 	@xattr -cr $(SPARKLE_FRAMEWORK)
-	@ditto $(SPARKLE_FRAMEWORK) $(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework
+	@COPYFILE_DISABLE=1 ditto $(SPARKLE_FRAMEWORK) $(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework
 	@xattr -cr $(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework
 	@install_name_tool -add_rpath @executable_path/../Frameworks $(APP_BUNDLE)/Contents/MacOS/$(APP_NAME) 2>/dev/null || true
 	@echo "Bundle assembled: $(APP_BUNDLE)"
