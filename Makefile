@@ -25,7 +25,7 @@ DMG_STAGING     := $(BUILD_OUTPUT)/dmg-staging
 EXECUTABLE      := $(BUILD_DIR)/notchnook
 
 # Sparkle paths
-SPARKLE_FRAMEWORK := $(shell swift build --show-bin-path -c $(CONFIGURATION))/../../../checkouts/Sparkle/Sparkle.framework
+SPARKLE_FRAMEWORK := $(BUILD_DIR)/Sparkle.framework
 SIGN_UPDATE     := .build/artifacts/sparkle/Sparkle/bin/sign_update
 GENERATE_KEYS   := .build/artifacts/sparkle/Sparkle/bin/generate_keys
 
@@ -65,11 +65,34 @@ bundle: build icon ## Assemble .app bundle
 	     -e 's/$${SPARKLE_ED_KEY}/$(SPARKLE_ED_KEY)/g' \
 	     $(DIST_DIR)/Info.plist > $(APP_BUNDLE)/Contents/Info.plist
 	@cp $(BUILD_OUTPUT)/AppIcon.icns $(APP_BUNDLE)/Contents/Resources/AppIcon.icns
+	@echo "Embedding Sparkle.framework..."
+	@xattr -cr $(SPARKLE_FRAMEWORK)
+	@ditto $(SPARKLE_FRAMEWORK) $(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework
+	@xattr -cr $(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework
+	@install_name_tool -add_rpath @executable_path/../Frameworks $(APP_BUNDLE)/Contents/MacOS/$(APP_NAME) 2>/dev/null || true
 	@echo "Bundle assembled: $(APP_BUNDLE)"
 
 sign: bundle ## Code-sign the .app bundle
 	@echo "Signing with identity: $(SIGNING_IDENTITY)"
-	codesign --force --deep --options runtime \
+	@xattr -cr $(APP_BUNDLE)
+	@find $(APP_BUNDLE) -name '._*' -delete 2>/dev/null || true
+	@find $(APP_BUNDLE) -name '.DS_Store' -delete 2>/dev/null || true
+	@# Sign Sparkle nested components inside-out
+	codesign --force --options runtime --sign "$(SIGNING_IDENTITY)" \
+		$(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc
+	codesign --force --options runtime --sign "$(SIGNING_IDENTITY)" \
+		$(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc
+	codesign --force --options runtime --sign "$(SIGNING_IDENTITY)" \
+		$(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app
+	codesign --force --options runtime --sign "$(SIGNING_IDENTITY)" \
+		$(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate
+	codesign --force --options runtime --sign "$(SIGNING_IDENTITY)" \
+		$(APP_BUNDLE)/Contents/Frameworks/Sparkle.framework
+	@# Clear any detritus before final sign
+	@xattr -cr $(APP_BUNDLE)
+	@find $(APP_BUNDLE) -name '._*' -delete 2>/dev/null || true
+	@# Sign the main app
+	codesign --force --options runtime \
 		--entitlements $(DIST_DIR)/NotchNook.entitlements \
 		--sign "$(SIGNING_IDENTITY)" \
 		$(APP_BUNDLE)

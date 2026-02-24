@@ -227,10 +227,7 @@ final class NotchWindowController {
 
     func toggleExpanded() {
         showWindow(animated: true)
-        withAnimation(NotchModel.transitionAnimation) {
-            model.expanded.toggle()
-        }
-        resizeWindow(animated: true)
+        setExpanded(!model.expanded)
     }
 
     func setExpanded(_ expanded: Bool) {
@@ -270,10 +267,29 @@ final class NotchWindowController {
 
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.hasShadow = true
+        window.hasShadow = false
         window.level = .statusBar
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
-        window.contentView = NSHostingView(rootView: content)
+
+        // Container with opaque backing layer to resist menu-bar compositor transparency
+        let containerView = NSView(frame: NSRect(origin: .zero, size: size))
+        containerView.wantsLayer = true
+        containerView.autoresizesSubviews = true
+
+        let backingLayer = CALayer()
+        backingLayer.backgroundColor = CGColor(gray: 0.08, alpha: 1.0)
+        backingLayer.cornerRadius = 24
+        backingLayer.cornerCurve = .continuous
+        backingLayer.frame = CGRect(origin: .zero, size: size)
+        backingLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        containerView.layer?.addSublayer(backingLayer)
+
+        let hostingView = NSHostingView(rootView: content)
+        hostingView.frame = NSRect(origin: .zero, size: size)
+        hostingView.autoresizingMask = [.width, .height]
+        containerView.addSubview(hostingView)
+
+        window.contentView = containerView
 
         self.window = window
     }
@@ -1585,7 +1601,6 @@ struct NotchRootView: View {
                     )
             }
         }
-        .compositingGroup()
         .animation(NotchModel.transitionAnimation, value: model.expanded)
     }
 }
@@ -1663,21 +1678,13 @@ struct ExpandedNotch: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(white: 0.08))
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .environment(\.colorScheme, .dark)
-        )
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color(white: 0.08).opacity(0.85))
-        )
+        .environment(\.colorScheme, .dark)
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
         )
-        .shadow(color: .black.opacity(0.7), radius: 24, y: 10)
         .animation(.easeInOut(duration: 0.18), value: isHovering)
         .onHover { hovering in
             isHovering = hovering
