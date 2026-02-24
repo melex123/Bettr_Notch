@@ -32,7 +32,16 @@ This document intentionally includes both:
 ```
 /Users/erikbartos/Desktop/Developer/notchnook
   Package.swift
+  Makefile                                  # DMG build orchestration
+  VERSION                                   # Semver version (single source of truth)
   Sources/notchnook/notchnook.swift
+  dist/
+    Info.plist                              # App bundle metadata template
+    NotchNook.entitlements                  # Production entitlements
+    PkgInfo                                 # Bundle marker (APPL????)
+  scripts/
+    create-icns.sh                          # Generates placeholder .icns icon
+    create-dmg.sh                           # Creates compressed DMG with hdiutil
   AI_PROJECT_DOCUMENTATION.md
   README.md
   .claude/launch.json
@@ -42,7 +51,8 @@ This document intentionally includes both:
   design/                                   # Design reference images
   index.html
   styles.css
-  .build/...
+  .build/...                                # SPM build artifacts
+  build/...                                 # Makefile output (.app, .dmg)
 ```
 
 Notes:
@@ -53,6 +63,7 @@ Notes:
 - `.agents/skills/apple-hig-designer/` contains the Apple Human Interface Guidelines design skill (typography, colors, spacing, components, accessibility).
 - `design/` contains reference screenshots of the NotchNook UI for design direction.
 - Core app behavior lives almost entirely in `notchnook.swift` (~33k lines).
+- `build/` directory is gitignored — contains Makefile output artifacts (.app bundle, .dmg, staging).
 
 ---
 
@@ -61,7 +72,8 @@ Notes:
 ## Build
 
 ```bash
-swift build
+swift build            # Debug build (development)
+swift build -c release # Release build (optimized)
 ```
 
 ## Run
@@ -69,6 +81,53 @@ swift build
 ```bash
 swift run
 ```
+
+## Distribution (DMG)
+
+```bash
+make dmg                              # Ad-hoc signed DMG (personal use)
+make dmg SIGNING_IDENTITY="Dev ID..." # Distribution signed DMG (notarization-ready)
+make bundle                           # Just build .app bundle (no DMG)
+make clean                            # Remove build/ artifacts
+make help                             # Show all targets
+```
+
+The `make dmg` pipeline:
+1. `swift build -c release` — compile optimized binary
+2. `scripts/create-icns.sh` — generate app icon (.icns) using Swift + AppKit
+3. Assemble `.app` bundle (binary, Info.plist with version substitution, icon, PkgInfo)
+4. Code-sign with hardened runtime + entitlements
+5. `scripts/create-dmg.sh` — create compressed UDZO DMG with Applications symlink
+
+Output: `build/NotchNook-{version}.dmg` (~2 MB)
+
+### Versioning
+
+- `VERSION` file at project root is the single source of truth (e.g., `1.0.0`)
+- Build number auto-derived from `git rev-list --count HEAD`
+- Both injected into `Info.plist` at bundle time via `sed`
+
+### Code Signing
+
+| Mode | Command | Identity | Use Case |
+|------|---------|----------|----------|
+| Ad-hoc | `make dmg` | `-` (default) | Local/personal use |
+| Distribution | `make dmg SIGNING_IDENTITY="..."` | Developer ID cert | Public distribution |
+
+Both modes use `--options runtime` (hardened runtime) and `dist/NotchNook.entitlements`.
+
+### Entitlements (`dist/NotchNook.entitlements`)
+
+- `com.apple.security.automation.apple-events` — for AppleScript media/volume control
+- Not sandboxed (app uses private frameworks, CGEvent, IOKit)
+- No `get-task-allow` (debug-only, excluded from production)
+
+### Info.plist (`dist/Info.plist`)
+
+- `LSUIElement: true` — agent app (no Dock icon)
+- `NSCalendarsUsageDescription` — EventKit calendar access
+- `NSRemindersUsageDescription` — EventKit reminders access
+- `NSAppleEventsUsageDescription` — AppleScript media controls
 
 ## Minimum platform
 
@@ -608,6 +667,15 @@ Mac users with notch displays want a fast, glanceable, low-friction utility surf
 - proper touch targets (24-28pt minimum) - DONE,
 - typography audit (minimum 10pt) - DONE.
 
+### M1.7 - DMG Distribution Build (DONE)
+
+- Makefile-based build pipeline (`make dmg`) - DONE,
+- App bundle (.app) assembly with Info.plist, entitlements, icon - DONE,
+- Code signing (ad-hoc + distribution modes) with hardened runtime - DONE,
+- Compressed DMG creation with Applications symlink - DONE,
+- Placeholder icon generation via Swift + AppKit - DONE,
+- Version management via `VERSION` file + git build numbers - DONE.
+
 ### M2 - Architecture cleanup
 
 - split monolith into modules,
@@ -708,6 +776,41 @@ Mac users with notch displays want a fast, glanceable, low-friction utility surf
 **Documentation:**
 - Updated README.md with Design section, Settings details, Project Structure, Development Tools
 - Updated AI_PROJECT_DOCUMENTATION.md with all changes
+
+### 2026-02-24 - DMG Distribution Build System
+
+**New build pipeline (`make dmg`):**
+- Added `Makefile` with targets: `build`, `icon`, `bundle`, `sign`, `dmg`, `clean`, `help`
+- Pipeline: SPM release build -> icon generation -> .app assembly -> code signing -> DMG creation
+- Output: `build/NotchNook-{version}.dmg` (~2 MB compressed UDZO)
+
+**App bundle infrastructure:**
+- `dist/Info.plist`: bundle metadata template with version placeholders, LSUIElement, privacy usage descriptions
+- `dist/NotchNook.entitlements`: production entitlements (apple-events only, no sandbox, no get-task-allow)
+- `dist/PkgInfo`: standard APPL???? marker
+
+**Icon generation (`scripts/create-icns.sh`):**
+- Compiles and runs a Swift program that uses AppKit to render a purple gradient icon with "NN" text
+- Generates all 10 required iconset sizes, converts via `iconutil -c icns`
+- No third-party tools required
+
+**DMG creation (`scripts/create-dmg.sh`):**
+- Creates staging directory with app + /Applications symlink
+- Uses `hdiutil create -format UDZO` for compressed read-only DMG
+- Optional DMG signing for distribution builds
+
+**Code signing (two modes):**
+- Ad-hoc (default): `make dmg` — local/personal use
+- Distribution: `make dmg SIGNING_IDENTITY="Developer ID Application: ..."` — notarization-ready
+- Both use hardened runtime (`--options runtime`) + production entitlements
+
+**Versioning:**
+- `VERSION` file as single source of truth (semver)
+- Build number from `git rev-list --count HEAD`
+- Both injected into Info.plist at bundle time
+
+**Other:**
+- Added `build/` to `.gitignore` for Makefile output directory
 
 ---
 
