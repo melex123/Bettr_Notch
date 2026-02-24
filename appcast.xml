@@ -5,5 +5,13 @@
     <link>https://raw.githubusercontent.com/melex123/Bettr_Notch/main/appcast.xml</link>
     <description>NotchNook update feed</description>
     <language>en</language>
+      <item>
+        <title>NotchNook 1.1.0</title>
+        <pubDate>Mon, 24 Feb 2026 00:00:00 +0000</pubDate>
+        <sparkle:version>1.1.0</sparkle:version>
+        <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+        <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        <enclosure url="https://github.com/melex123/Bettr_Notch/releases/download/v1.1.0/NotchNook-1.1.0.dmg" length="2082351" type="application/octet-stream" />
+      </item>
   </channel>
 </rss>

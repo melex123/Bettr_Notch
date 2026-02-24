@@ -88,18 +88,14 @@ NEW_ITEM="      <item>
         <enclosure ${ENCLOSURE_ATTRS} />
       </item>"
 
-# Insert the new item before </channel>
-if grep -q "<item>" "$APPCAST"; then
-    # Appcast already has items — insert before the first <item>
-    sed -i '' "/<item>/i\\
-${NEW_ITEM}
-" "$APPCAST"
-else
-    # Empty appcast — insert before </channel>
-    sed -i '' "/<\/channel>/i\\
-${NEW_ITEM}
-" "$APPCAST"
-fi
+# Insert the new item before </channel> using python for reliable multi-line XML insertion
+python3 -c "
+import sys
+appcast = open('$APPCAST').read()
+item = '''$NEW_ITEM'''
+appcast = appcast.replace('  </channel>', item + '\n  </channel>')
+open('$APPCAST', 'w').write(appcast)
+"
 
 echo "Appcast updated with ${VERSION}."
 echo ""
