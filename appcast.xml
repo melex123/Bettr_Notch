@@ -19,7 +19,7 @@
         <sparkle:version>1.2.0</sparkle:version>
         <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
         <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-        <enclosure url="https://github.com/melex123/Bettr_Notch/releases/download/v1.2.0/NotchNook-1.2.0.dmg" length="3099263" type="application/octet-stream" sparkle:edSignature="8fXpGVxkpe3SQi2rOphRtAgGlJZTWtLmukcXGeOO4cqMTmJ6dex0O2uC2KIU3r90CC624g3kFXGe3LkSGv4LCQ==" />
+        <enclosure url="https://github.com/melex123/Bettr_Notch/releases/download/v1.2.0/NotchNook-1.2.0.dmg" length="3099331" type="application/octet-stream" sparkle:edSignature="bA3D0i91oqgSef1AYyEEM1F86JKVrx2cqcsCvmt75S9ir5B1RE+m4xk46XgkLlylGw7U2Pc/UyYbIrcanMOZBQ==" />
       </item>
   </channel>
 </rss>
