@@ -118,10 +118,10 @@ final class SettingsWindowController {
 
     private func createWindow() {
         let rootView = SettingsView()
-            .frame(width: 460, height: 540)
+            .frame(width: 480, height: 560)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 460, height: 540),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 560),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -580,6 +580,7 @@ final class NotchWindowController {
 final class NotchPreferences: ObservableObject {
     static let shared = NotchPreferences()
 
+    @Published var showSystemMetrics = true { didSet { persist(Keys.showSystemMetrics, showSystemMetrics) } }
     @Published var showBattery = true { didSet { persist(Keys.showBattery, showBattery) } }
     @Published var showCPU = true { didSet { persist(Keys.showCPU, showCPU) } }
     @Published var showRAM = true { didSet { persist(Keys.showRAM, showRAM) } }
@@ -630,6 +631,7 @@ final class NotchPreferences: ObservableObject {
     private var isApplyingProfile = false
 
     private init() {
+        showSystemMetrics = readBool(Keys.showSystemMetrics, defaultValue: true)
         showBattery = readBool(Keys.showBattery, defaultValue: true)
         showCPU = readBool(Keys.showCPU, defaultValue: true)
         showRAM = readBool(Keys.showRAM, defaultValue: true)
@@ -655,6 +657,7 @@ final class NotchPreferences: ObservableObject {
 
     func resetDefaults() {
         isApplyingProfile = true
+        showSystemMetrics = true
         showBattery = true
         showCPU = true
         showRAM = true
@@ -809,6 +812,7 @@ final class NotchPreferences: ObservableObject {
     }
 
     private enum Keys {
+        static let showSystemMetrics = "notchnook.settings.showSystemMetrics"
         static let showBattery = "notchnook.settings.showBattery"
         static let showCPU = "notchnook.settings.showCPU"
         static let showRAM = "notchnook.settings.showRAM"
@@ -896,18 +900,18 @@ final class NotchModel: ObservableObject {
 
     var currentSize: NSSize {
         if expanded {
-            var height: CGFloat = 46
-            if preferences.showMediaNowPlaying { height += 56 }
-            if preferences.showFocusTimer { height += 38 }
-            if preferences.showClipboardHistory { height += 52 }
-            if preferences.showMiniCalendar { height += 38 }
-            if preferences.showFileShelf { height += 60 }
-            return NSSize(width: 520, height: min(height, 360))
+            var height: CGFloat = 56
+            if preferences.showMediaNowPlaying { height += 80 }
+            if preferences.showFocusTimer { height += 56 }
+            if preferences.showClipboardHistory { height += 72 }
+            if preferences.showMiniCalendar { height += 64 }
+            if preferences.showFileShelf { height += 88 }
+            return NSSize(width: 380, height: min(height, 460))
         }
         if hasLiveFocusWidget {
-            return NSSize(width: 250, height: 30)
+            return NSSize(width: 240, height: 32)
         }
-        return NSSize(width: 200, height: 30)
+        return NSSize(width: 190, height: 32)
     }
 
     init() {
@@ -1600,37 +1604,38 @@ struct CollapsedNotch: View {
     private var defaultCollapsedView: some View {
         HStack(spacing: 8) {
             Image(systemName: "capsule.portrait")
-                .foregroundStyle(.white.opacity(0.8))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.7))
             Text("NotchNook")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white.opacity(0.85))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.9))
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Capsule().fill(Color.black.opacity(isHovering ? 0.97 : 0.92)))
-        .overlay(Capsule().stroke(Color.white.opacity(isHovering ? 0.18 : 0.1), lineWidth: 1))
-        .shadow(color: .black.opacity(isHovering ? 0.52 : 0.35), radius: isHovering ? 16 : 8, y: isHovering ? 7 : 3)
-        .scaleEffect(isHovering ? 1.02 : 1.0)
+        .background(Capsule().fill(Color(white: 0.10)))
+        .overlay(Capsule().stroke(Color.white.opacity(isHovering ? 0.20 : 0.08), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.6), radius: 16, y: 6)
+        .scaleEffect(isHovering ? 1.03 : 1.0)
     }
 
     @ViewBuilder
     private var focusLiveActivityView: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 6) {
             Image(systemName: model.focusPhaseTitle == "Focus" ? "brain.head.profile" : "cup.and.saucer.fill")
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 11, weight: .bold))
             Text(model.focusPhaseTitle)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
             Text(model.focusTimeString)
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .font(.system(size: 13, weight: .bold, design: .monospaced))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 2)
         .foregroundStyle(.white.opacity(0.95))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .background(Capsule().fill(Color.black.opacity(0.95)))
-        .overlay(Capsule().stroke(Color.cyan.opacity(isHovering ? 0.6 : 0.35), lineWidth: 1))
-        .shadow(color: .cyan.opacity(isHovering ? 0.25 : 0.12), radius: isHovering ? 10 : 6, y: 3)
-        .scaleEffect(isHovering ? 1.02 : 1.0)
+        .background(Capsule().fill(Color.black.opacity(0.96)))
+        .overlay(Capsule().stroke(Color.cyan.opacity(isHovering ? 0.5 : 0.25), lineWidth: 0.5))
+        .shadow(color: .cyan.opacity(isHovering ? 0.22 : 0.10), radius: isHovering ? 10 : 5, y: 3)
+        .scaleEffect(isHovering ? 1.025 : 1.0)
     }
 }
 
@@ -1641,22 +1646,26 @@ struct ExpandedNotch: View {
     @State private var isHovering = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 8) {
             headerRow
             contentSections
         }
-        .padding(6)
+        .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color.black.opacity(isHovering ? 0.97 : 0.94))
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .environment(\.colorScheme, .dark)
+        )
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(white: 0.08).opacity(0.85))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.white.opacity(isHovering ? 0.14 : 0.08), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
         )
-        .shadow(color: .black.opacity(isHovering ? 0.55 : 0.42), radius: isHovering ? 18 : 12, y: isHovering ? 8 : 5)
-        .scaleEffect(isHovering ? 1.003 : 1.0)
+        .shadow(color: .black.opacity(0.7), radius: 24, y: 10)
         .animation(.easeInOut(duration: 0.18), value: isHovering)
         .onHover { hovering in
             isHovering = hovering
@@ -1668,54 +1677,62 @@ struct ExpandedNotch: View {
 
     @ViewBuilder
     private var headerRow: some View {
-        HStack(spacing: 6) {
-            if preferences.showMuteAction {
-                headerIconButton("speaker.slash.fill") {
-                    MediaController.toggleMute()
-                }
-            }
-            if preferences.showFilePasteAction {
-                headerIconButton("doc.on.clipboard") {
-                    model.copyLatestFileToPasteboard()
-                }
-            }
-
-            Spacer(minLength: 0)
-
+        VStack(spacing: 6) {
+            // Top row: action buttons on left, settings on right — nothing in center (notch area)
             HStack(spacing: 8) {
-                if preferences.showBattery {
-                    metricPill(icon: model.batteryIcon, value: model.batteryValue)
+                if preferences.showMuteAction {
+                    headerIconButton("speaker.slash.fill") {
+                        MediaController.toggleMute()
+                    }
                 }
-                if preferences.showCPU {
-                    metricPill(icon: "cpu", value: model.cpuValue)
+                if preferences.showFilePasteAction {
+                    headerIconButton("doc.on.clipboard") {
+                        model.copyLatestFileToPasteboard()
+                    }
                 }
-                if preferences.showRAM {
-                    metricPill(icon: "memorychip", value: model.memoryValue)
+
+                Spacer(minLength: 0)
+
+                Button {
+                    SettingsPresenter.open()
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 12))
+                        .frame(width: 28, height: 28)
                 }
-                if preferences.showGPU {
-                    metricPill(icon: "gpu", value: model.gpuValue)
-                }
-                if preferences.showWeather {
-                    metricPill(icon: model.weatherIcon, value: model.weatherValue)
-                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white.opacity(0.50))
+                .hoverLift(scale: 1.08, hoverOpacity: 1.0)
             }
 
-            Button {
-                SettingsPresenter.open()
-            } label: {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 11))
+            // Metrics row: below the notch, full width
+            if preferences.showSystemMetrics {
+                HStack(spacing: 8) {
+                    if preferences.showBattery {
+                        metricPill(icon: model.batteryIcon, value: model.batteryValue)
+                    }
+                    if preferences.showCPU {
+                        metricPill(icon: "cpu", value: model.cpuValue)
+                    }
+                    if preferences.showRAM {
+                        metricPill(icon: "memorychip", value: model.memoryValue)
+                    }
+                    if preferences.showGPU {
+                        metricPill(icon: "gpu", value: model.gpuValue)
+                    }
+                    if preferences.showWeather {
+                        metricPill(icon: model.weatherIcon, value: model.weatherValue)
+                    }
+                    Spacer(minLength: 0)
+                }
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.white.opacity(0.45))
-            .hoverLift(scale: 1.1, hoverOpacity: 1.0)
         }
     }
 
     @ViewBuilder
     private var contentSections: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 8) {
                 if preferences.showMediaNowPlaying {
                     NowPlayingStrip(model: model)
                 }
@@ -1738,9 +1755,10 @@ struct ExpandedNotch: View {
 
                 if !model.actionFeedback.isEmpty {
                     Text(model.actionFeedback)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.cyan.opacity(0.8))
-                        .padding(.horizontal, 4)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.cyan.opacity(0.85))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                 }
             }
         }
@@ -1749,10 +1767,10 @@ struct ExpandedNotch: View {
     private func headerIconButton(_ icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .medium))
-                .frame(width: 24, height: 24)
-                .foregroundStyle(.white.opacity(0.6))
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+                .font(.system(size: 11, weight: .medium))
+                .frame(width: 28, height: 28)
+                .foregroundStyle(.white.opacity(0.55))
+                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
         .hoverLift(scale: 1.06, hoverOpacity: 1.0)
@@ -1765,7 +1783,10 @@ struct ExpandedNotch: View {
             Text(value)
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
         }
-        .foregroundStyle(.white.opacity(0.45))
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .foregroundStyle(.white.opacity(0.50))
+        .background(Color.white.opacity(0.05), in: Capsule())
     }
 }
 
@@ -1782,7 +1803,7 @@ struct QuickActionsRowView: View {
     var body: some View {
         if hasAnyAction {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     if preferences.showMediaNowPlaying {
                         QuickActionButton(title: "Prev", systemImage: "backward.fill") {
                             MediaController.previousTrack()
@@ -1807,11 +1828,10 @@ struct QuickActionsRowView: View {
                         }
                     }
                 }
-                .padding(.vertical, 0)
             }
         } else {
             Text("Enable quick actions from settings")
-                .font(.system(size: 12))
+                .font(.system(size: 13))
                 .foregroundStyle(.white.opacity(0.65))
         }
     }
@@ -1821,23 +1841,23 @@ struct FocusTimerView: View {
     @ObservedObject var model: NotchModel
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Image(systemName: model.focusPhaseTitle == "Focus" ? "brain.head.profile" : "cup.and.saucer.fill")
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.cyan.opacity(0.7))
                 .frame(width: 16)
 
             Text(model.focusPhaseTitle)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.65))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.60))
 
             Text(model.focusTimeString)
-                .font(.system(size: 13, weight: .bold, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.9))
+                .font(.system(size: 15, weight: .bold, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.90))
 
             Spacer(minLength: 0)
 
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 focusButton(icon: model.focusPhase.isRunning ? "pause.fill" : "play.fill") {
                     model.toggleFocus()
                 }
@@ -1849,18 +1869,19 @@ struct FocusTimerView: View {
                 }
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 0.5))
     }
 
     private func focusButton(icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.6))
-                .frame(width: 24, height: 24)
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+                .foregroundStyle(.white.opacity(0.55))
+                .frame(width: 28, height: 28)
+                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -1870,26 +1891,34 @@ struct ClipboardHistoryView: View {
     @ObservedObject var model: NotchModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
+            // Section header
+            HStack(spacing: 4) {
+                Image(systemName: "clipboard")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.40))
+                Text("Clipboard")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.50))
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 2)
+
             if model.sortedClipboardEntries.isEmpty {
-                HStack(spacing: 5) {
-                    Image(systemName: "clipboard")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.white.opacity(0.35))
-                    Text("Copy text to start history")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.35))
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
+                Text("Copy text to start history")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.30))
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 4)
             } else {
                 ForEach(Array(model.sortedClipboardEntries.prefix(3))) { entry in
-                    HStack(spacing: 5) {
+                    HStack(spacing: 6) {
                         Button {
                             model.copyClipboardEntry(entry)
                         } label: {
                             Text(entry.value)
-                                .font(.system(size: 11))
+                                .font(.system(size: 12))
                                 .lineLimit(1)
                                 .foregroundStyle(.white.opacity(0.75))
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1900,8 +1929,9 @@ struct ClipboardHistoryView: View {
                             model.copyClipboardEntry(entry)
                         } label: {
                             Image(systemName: "doc.on.doc")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.white.opacity(0.4))
+                                .font(.system(size: 10))
+                                .foregroundStyle(.white.opacity(0.40))
+                                .frame(width: 24, height: 24)
                         }
                         .buttonStyle(.plain)
 
@@ -1909,8 +1939,9 @@ struct ClipboardHistoryView: View {
                             model.toggleClipboardPin(entry)
                         } label: {
                             Image(systemName: model.isClipboardPinned(entry) ? "star.fill" : "star")
-                                .font(.system(size: 9))
-                                .foregroundStyle(model.isClipboardPinned(entry) ? .yellow.opacity(0.7) : .white.opacity(0.3))
+                                .font(.system(size: 10))
+                                .foregroundStyle(model.isClipboardPinned(entry) ? .yellow.opacity(0.7) : .white.opacity(0.30))
+                                .frame(width: 24, height: 24)
                         }
                         .buttonStyle(.plain)
 
@@ -1918,19 +1949,21 @@ struct ClipboardHistoryView: View {
                             model.removeClipboardEntry(entry)
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.system(size: 8, weight: .bold))
+                                .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(.white.opacity(0.25))
+                                .frame(width: 24, height: 24)
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 8)
+                    .padding(.horizontal, 10)
                     .padding(.vertical, 4)
                 }
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 0.5))
     }
 }
 
@@ -1938,41 +1971,43 @@ struct MiniCalendarView: View {
     @ObservedObject var model: NotchModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 5) {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
                 Image(systemName: "calendar")
-                    .font(.system(size: 10))
+                    .font(.system(size: 11))
                     .foregroundStyle(.white.opacity(0.45))
                 Text(model.currentDayText)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.65))
                 Spacer(minLength: 0)
                 if model.reminderItems.isEmpty {
                     Text(model.reminderStatusText)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.white.opacity(0.35))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.30))
                 }
             }
 
             ForEach(model.reminderItems) { reminder in
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     Circle()
-                        .fill(Color.cyan.opacity(0.5))
-                        .frame(width: 4, height: 4)
+                        .fill(Color.white.opacity(0.35))
+                        .frame(width: 5, height: 5)
                     Text(reminder.title)
-                        .font(.system(size: 11))
+                        .font(.system(size: 12))
                         .lineLimit(1)
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(.white.opacity(0.65))
                     Spacer(minLength: 0)
                     Text(reminder.dueText)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.4))
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.40))
                 }
+                .padding(.vertical, 2)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 0.5))
     }
 }
 
@@ -1982,20 +2017,20 @@ struct FileShelfView: View {
     // Drag state is tracked by FileShelfDraggingSource.shared.isDragging
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 4) {
             if model.droppedFiles.isEmpty {
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     Image(systemName: "tray.and.arrow.down")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.white.opacity(0.35))
+                        .font(.system(size: 14))
+                        .foregroundStyle(.white.opacity(0.25))
                     Text("Drop files here")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.35))
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.30))
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .padding(.horizontal, 10)
             } else {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     shelfIconButton("checkmark.circle") {
                         model.selectAllShelfFiles()
                     }
@@ -2003,23 +2038,24 @@ struct FileShelfView: View {
                         model.clearShelfSelection()
                     }
                     Spacer(minLength: 0)
-                    Text("\(model.droppedFiles.count)")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    Text("\(model.droppedFiles.count) files")
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.35))
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 10)
                 .padding(.top, 4)
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(model.droppedFiles, id: \.self) { file in
-                            HStack(spacing: 5) {
+                            HStack(spacing: 6) {
                                 Button {
                                     model.toggleShelfSelection(file)
                                 } label: {
                                     Image(systemName: model.isShelfSelected(file) ? "checkmark.circle.fill" : "circle")
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(model.isShelfSelected(file) ? .cyan.opacity(0.7) : .white.opacity(0.3))
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(model.isShelfSelected(file) ? .white.opacity(0.70) : .white.opacity(0.30))
+                                        .frame(width: 24, height: 24)
                                 }
                                 .buttonStyle(.plain)
 
@@ -2027,9 +2063,9 @@ struct FileShelfView: View {
                                     model.openFile(file)
                                 } label: {
                                     Text(file.lastPathComponent)
-                                        .font(.system(size: 11))
+                                        .font(.system(size: 12))
                                         .lineLimit(1)
-                                        .foregroundStyle(.white.opacity(0.75))
+                                        .foregroundStyle(.white.opacity(0.70))
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 .buttonStyle(.plain)
@@ -2038,16 +2074,17 @@ struct FileShelfView: View {
                                     model.removeFile(file)
                                 } label: {
                                     Image(systemName: "xmark")
-                                        .font(.system(size: 8, weight: .bold))
+                                        .font(.system(size: 9, weight: .bold))
                                         .foregroundStyle(.white.opacity(0.25))
+                                        .frame(width: 24, height: 24)
                                 }
                                 .buttonStyle(.plain)
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
                             .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(model.isShelfSelected(file) ? Color.cyan.opacity(0.1) : Color.clear)
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(model.isShelfSelected(file) ? Color.white.opacity(0.08) : Color.clear)
                             )
                             .contentShape(Rectangle())
                             .simultaneousGesture(
@@ -2060,15 +2097,15 @@ struct FileShelfView: View {
                         }
                     }
                 }
-                .frame(maxHeight: 100)
+                .frame(maxHeight: 110)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(dropActive ? Color.cyan.opacity(0.6) : Color.clear, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(dropActive ? Color.cyan.opacity(0.40) : Color.white.opacity(0.10), lineWidth: dropActive ? 1.0 : 0.5)
         )
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $dropActive, perform: handleDrop(providers:))
     }
@@ -2142,10 +2179,10 @@ struct FileShelfView: View {
     private func shelfIconButton(_ icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 10))
+                .font(.system(size: 11))
                 .foregroundStyle(.white.opacity(0.45))
-                .frame(width: 22, height: 22)
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+                .frame(width: 28, height: 28)
+                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -2251,18 +2288,18 @@ struct QuickActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 3) {
+            HStack(spacing: 4) {
                 Image(systemName: systemImage)
                 Text(title)
             }
-            .font(.system(size: 11, weight: .semibold))
-            .padding(.horizontal, 7)
-            .padding(.vertical, 4)
-            .foregroundStyle(.white)
-            .background(Color.white.opacity(isHovering ? 0.16 : 0.09), in: Capsule())
+            .font(.system(size: 12, weight: .semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .foregroundStyle(.white.opacity(0.85))
+            .background(Color.white.opacity(isHovering ? 0.14 : 0.08), in: Capsule())
         }
         .buttonStyle(.plain)
-        .scaleEffect(isHovering ? 1.02 : 1.0)
+        .scaleEffect(isHovering ? 1.03 : 1.0)
         .animation(.easeInOut(duration: 0.14), value: isHovering)
         .onHover { hovering in
             isHovering = hovering
@@ -2303,31 +2340,32 @@ struct NowPlayingStrip: View {
                 Image(nsImage: artwork)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(width: 40, height: 40)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .frame(width: 48, height: 48)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
             } else {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.white.opacity(0.05))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.white.opacity(0.06))
                     Image(systemName: model.nowPlayingIcon)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.green.opacity(0.6))
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.4))
                 }
-                .frame(width: 40, height: 40)
+                .frame(width: 48, height: 48)
             }
 
             // Track info + progress
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(model.nowPlayingShortTitle)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
-                    .foregroundStyle(.white.opacity(0.9))
+                    .foregroundStyle(.white.opacity(0.90))
 
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     if !model.nowPlayingSource.isEmpty {
                         Text(model.nowPlayingSource)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.white.opacity(0.4))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.40))
                             .layoutPriority(1)
                     }
                     if let progress = model.nowPlayingProgress {
@@ -2335,13 +2373,13 @@ struct NowPlayingStrip: View {
                             ZStack(alignment: .leading) {
                                 Capsule()
                                     .fill(Color.white.opacity(0.08))
-                                    .frame(height: 3)
+                                    .frame(height: 4)
                                 Capsule()
-                                    .fill(Color.green.opacity(0.55))
-                                    .frame(width: max(3, geo.size.width * progress), height: 3)
+                                    .fill(Color.white.opacity(0.40))
+                                    .frame(width: max(4, geo.size.width * progress), height: 4)
                             }
                         }
-                        .frame(height: 3)
+                        .frame(height: 4)
                     }
                 }
             }
@@ -2352,40 +2390,44 @@ struct NowPlayingStrip: View {
             HStack(spacing: 8) {
                 Button { MediaController.previousTrack() } label: {
                     Image(systemName: "backward.fill")
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
+                        .frame(width: 28, height: 28)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(.white.opacity(0.45))
 
                 Button {
                     MediaController.playPause()
                     model.nowPlayingIsPlaying.toggle()
                 } label: {
                     Image(systemName: model.nowPlayingIsPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 14))
-                        .frame(width: 18)
+                        .font(.system(size: 14, weight: .medium))
+                        .frame(width: 32, height: 32)
+                        .background(Color.white.opacity(0.10), in: Circle())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white.opacity(0.85))
 
                 Button { MediaController.nextTrack() } label: {
                     Image(systemName: "forward.fill")
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
+                        .frame(width: 28, height: 28)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(.white.opacity(0.45))
             }
 
             // Remaining time
             if let remaining = model.nowPlayingRemainingText {
                 Text(remaining)
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.35))
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 0.5))
     }
 }
 
@@ -2394,12 +2436,12 @@ struct SettingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 16) {
                 Text("NotchNook Settings")
                     .font(.title2.bold())
 
                 GroupBox("Profiles") {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 12) {
                         Picker("Profile", selection: $preferences.selectedProfile) {
                             ForEach(NotchProfile.allCases) { profile in
                                 Text(profile.label).tag(profile)
@@ -2412,25 +2454,41 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.top, 4)
+                    .padding(.top, 8)
                 }
 
                 GroupBox("Quick Actions") {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Toggle("Now Playing + Media Controls", isOn: $preferences.showMediaNowPlaying)
                         Toggle("Mute Button", isOn: $preferences.showMuteAction)
                         Toggle("File Paste Button", isOn: $preferences.showFilePasteAction)
                     }
-                    .padding(.top, 4)
+                    .padding(.top, 8)
+                }
+
+                GroupBox("System Status") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Toggle("Show System Metrics", isOn: $preferences.showSystemMetrics)
+                        Group {
+                            Toggle("Battery", isOn: $preferences.showBattery)
+                            Toggle("CPU", isOn: $preferences.showCPU)
+                            Toggle("RAM", isOn: $preferences.showRAM)
+                            Toggle("GPU", isOn: $preferences.showGPU)
+                            Toggle("Weather", isOn: $preferences.showWeather)
+                        }
+                        .disabled(!preferences.showSystemMetrics)
+                        .opacity(preferences.showSystemMetrics ? 1.0 : 0.5)
+                    }
+                    .padding(.top, 8)
                 }
 
                 GroupBox("Panels") {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Toggle("File Shelf", isOn: $preferences.showFileShelf)
                         Toggle("Clipboard History (pin/favorite slots)", isOn: $preferences.showClipboardHistory)
                         Toggle("Mini Calendar + Upcoming Reminders", isOn: $preferences.showMiniCalendar)
                         Toggle("Focus + Break Timer", isOn: $preferences.showFocusTimer)
-                        HStack(spacing: 14) {
+                        HStack(spacing: 16) {
                             Stepper("Focus: \(preferences.focusMinutes) min", value: $preferences.focusMinutes, in: 5...120, step: 1)
                             Stepper("Break: \(preferences.breakMinutes) min", value: $preferences.breakMinutes, in: 1...60, step: 1)
                         }
@@ -2439,11 +2497,11 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.top, 4)
+                    .padding(.top, 8)
                 }
 
                 GroupBox("Implemented Ideas") {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 8) {
                         Text("Clipboard history with pin/favorite slots")
                         Text("Select and drag files directly from File Shelf")
                         Text("Mini calendar with upcoming reminders")
@@ -2451,13 +2509,13 @@ struct SettingsView: View {
                         Text("Profiles (work/gaming/meeting)")
                         Text("Compact notch-first layout")
                     }
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 4)
+                    .padding(.top, 8)
                 }
 
-                HStack {
+                HStack(spacing: 12) {
                     Spacer()
                     Button("Apply Selected Profile") {
                         preferences.applySelectedProfile()
@@ -2467,7 +2525,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            .padding(18)
+            .padding(20)
         }
     }
 }

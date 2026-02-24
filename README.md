@@ -8,19 +8,32 @@ NotchNook is a floating panel that lives behind your MacBook's notch. Hover over
 
 ## Features
 
-**Media Controls** — See what's playing on Spotify, Apple Music, or browser tabs (YouTube). Skip, pause, and control playback without switching apps.
+**Media Controls** — See what's playing on Spotify, Apple Music, or browser tabs (YouTube). Skip, pause, and control playback without switching apps. Album artwork, track info, and progress bar at a glance.
 
 **Focus Timer** — Built-in Pomodoro-style timer with configurable focus and break durations. A live compact indicator stays visible in the collapsed notch while the timer runs.
 
-**Clipboard History** — Automatically captures copied text with pinning, search, and one-click copy-back. Multi-line text is preserved. History persists across sessions.
+**Clipboard History** — Automatically captures copied text with pinning, search, and one-click copy-back. Multi-line text is preserved. History persists across sessions. Section header for quick identification.
 
 **File Shelf** — Drag and drop files onto the panel for quick access. Supports multi-file selection and drag-out to other apps using a native AppKit drag system.
 
 **Mini Calendar** — Shows upcoming Reminders for the next 3 days, integrated via EventKit.
 
-**System Metrics** — Glanceable CPU, RAM, GPU, battery, network speed, and weather tiles — only refreshed when visible to stay lightweight.
+**System Metrics** — Glanceable CPU, RAM, GPU, battery, and weather indicators. Displayed in a dedicated metrics row below the notch to avoid being hidden by the physical notch cutout. Can be toggled on/off entirely from Settings.
 
 **Profiles** — Switch between Work, Gaming, and Meeting presets to show only the modules you need. Optional auto-switching based on active app.
+
+## Design
+
+The UI follows Apple Human Interface Guidelines with:
+
+- **Material vibrancy** — `.ultraThinMaterial` panel background for system-integrated blur
+- **Continuous squircle corners** — 24pt panel, 16pt widget cards, 8pt buttons (`.continuous` style)
+- **8-point grid spacing** — all padding and margins on Apple's standard grid
+- **Notch-aware header layout** — action buttons on left, settings on right, nothing in the center where the notch blocks visibility. Metrics appear in a second row below the notch
+- **Box-style widget cards** — each widget is a distinct card with subtle border and background separation
+- **Compact form factor** — 380px wide panel optimized for glanceability
+- **HIG typography** — minimum 10pt text, semantic sizing, SF system font
+- **Proper touch targets** — minimum 24-28pt for all interactive elements
 
 ## Requirements
 
@@ -44,6 +57,15 @@ No third-party dependencies — only Apple frameworks (AppKit, SwiftUI, Combine,
 - The panel automatically pins to the built-in MacBook display, even with external monitors connected
 - Moving the mouse away collapses it back behind the notch
 
+## Settings
+
+Accessible via the gear icon in the panel header:
+
+- **Profiles** — Work, Gaming, Meeting presets with one-click switching
+- **Quick Actions** — Toggle Now Playing, Mute Button, File Paste
+- **System Status** — Master toggle for system metrics, plus individual toggles for Battery, CPU, RAM, GPU, and Weather
+- **Panels** — Toggle File Shelf, Clipboard History, Mini Calendar, Focus Timer with configurable durations
+
 ## Permissions
 
 NotchNook may request the following permissions:
@@ -56,9 +78,17 @@ NotchNook may request the following permissions:
 
 ```
 Package.swift                          # Swift Package Manager config
-Sources/notchnook/notchnook.swift      # Main application source
+Sources/notchnook/notchnook.swift      # Main application source (monolithic)
 index.html + styles.css                # Landing page (not part of the app)
+design/                                # Design reference images
+.claude/agents/                        # Claude Code agent configurations
+.agents/skills/apple-hig-designer/     # Apple HIG design skill reference
 ```
+
+## Development Tools
+
+- **ui-smoothness-tuner agent** — Automated UI performance reviewer with Apple HIG knowledge. Reviews animations, transitions, spacing, and visual polish against Apple guidelines.
+- **Apple HIG Designer skill** — Reference for Apple Human Interface Guidelines (typography, colors, spacing, components, accessibility).
 
 ## License
 

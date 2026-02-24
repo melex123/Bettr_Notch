@@ -34,7 +34,12 @@ This document intentionally includes both:
   Package.swift
   Sources/notchnook/notchnook.swift
   AI_PROJECT_DOCUMENTATION.md
+  README.md
   .claude/launch.json
+  .claude/agents/ui-smoothness-tuner.md
+  .claude/settings.local.json
+  .agents/skills/apple-hig-designer/       # Apple HIG design skill reference
+  design/                                   # Design reference images
   index.html
   styles.css
   .build/...
@@ -44,7 +49,10 @@ Notes:
 
 - `index.html` and `styles.css` exist but are not part of the macOS app runtime.
 - `.claude/launch.json` contains dev server configuration for `swift run`.
-- Core app behavior lives almost entirely in `notchnook.swift` (~3000 lines).
+- `.claude/agents/ui-smoothness-tuner.md` configures the UI smoothness review agent with Apple HIG knowledge.
+- `.agents/skills/apple-hig-designer/` contains the Apple Human Interface Guidelines design skill (typography, colors, spacing, components, accessibility).
+- `design/` contains reference screenshots of the NotchNook UI for design direction.
+- Core app behavior lives almost entirely in `notchnook.swift` (~33k lines).
 
 ---
 
@@ -122,7 +130,7 @@ NotchNook is a floating notch companion panel for MacBook displays with notch su
    - has `cleanup()` method for proper resource teardown on app quit.
 
 2. `SettingsWindowController`
-   - manages separate settings window (`460x540`).
+   - manages separate settings window (`480x560`).
 
 3. `NotchModel` (ObservableObject)
    - central app state (UI state + data + timers + side effects),
@@ -193,6 +201,7 @@ From `NotchPreferences.Keys` and model constants:
 - `notchnook.clipboard.entries`
 - `notchnook.clipboard.pinned`
 - preference keys:
+  - `notchnook.settings.showSystemMetrics`
   - `notchnook.settings.showBattery`
   - `notchnook.settings.showCPU`
   - `notchnook.settings.showRAM`
@@ -242,21 +251,31 @@ Main SwiftUI tree:
 
 Expanded sections (conditional via preferences):
 
-1. Header (brand + settings button)
-2. Quick actions row
-3. Now playing strip
-4. Focus timer card
-5. Clipboard history card
-6. Mini calendar card
-7. File shelf card
-8. Temporary feedback label
+1. Header row (notch-aware split layout):
+   - Top: action buttons (mute, file paste) on left, settings gear on right, **nothing in center** (notch area)
+   - Bottom: system metrics row (battery, CPU, RAM, GPU, weather) — below the notch, toggleable via `showSystemMetrics`
+2. Now playing strip (with 48x48 artwork, progress bar, media controls)
+3. Focus timer card
+4. Clipboard history card (with section header)
+5. Mini calendar card
+6. File shelf card
+7. Temporary feedback label
+
+### Design System
+
+- **Panel**: 380px wide, max 460px tall, 24pt continuous squircle corners, `.ultraThinMaterial` background with dark tint
+- **Widget cards**: 16pt continuous corners, `white.opacity(0.08)` background, `0.10` opacity border, 0.5pt stroke
+- **Buttons**: 8pt continuous corners, 24-28pt touch targets
+- **Spacing**: 8pt grid throughout (12pt panel padding, 8pt inter-card spacing, 10pt card internal padding)
+- **Typography**: SF system font, minimum 10pt, semantic sizing
+- **Colors**: white opacity hierarchy for text (0.85 primary, 0.55 secondary, 0.30 tertiary), cyan accent for focus timer
 
 Current compact sizing:
 
-- expanded window approx: width `560`, max height `360` (dynamic by enabled modules),
+- expanded window: width `380`, max height `460` (dynamic by enabled modules),
 - collapsed sizes:
-  - default `200x30`,
-  - with live focus widget `250x30`.
+  - default `190x32`,
+  - with live focus widget `240x32`.
 
 ---
 
@@ -279,6 +298,10 @@ Contains:
   - now playing + media controls
   - mute
   - file paste
+- System Status toggles
+  - master toggle: `showSystemMetrics` (enables/disables all metrics at once)
+  - individual toggles: Battery, CPU, RAM, GPU, Weather
+  - individual toggles disabled when master is off
 - Panel toggles
   - file shelf
   - clipboard history
@@ -568,11 +591,22 @@ Mac users with notch displays want a fast, glanceable, low-friction utility surf
 
 ## 15.10 Milestones
 
-### M1 - Stability baseline (IN PROGRESS)
+### M1 - Stability baseline (DONE)
 
 - Fix drag-out reliability (single + multi) - DONE,
-- harden notch positioning and hover behavior - IN PROGRESS,
-- fix animation smoothness - IN PROGRESS.
+- harden notch positioning and hover behavior - DONE,
+- fix animation smoothness - DONE.
+
+### M1.5 - Design overhaul (DONE)
+
+- Apple HIG-compliant redesign - DONE,
+- material vibrancy panel background - DONE,
+- box-style widget cards with visible borders - DONE,
+- notch-aware header layout (no content behind physical notch) - DONE,
+- system metrics toggle in settings - DONE,
+- 8pt grid spacing system - DONE,
+- proper touch targets (24-28pt minimum) - DONE,
+- typography audit (minimum 10pt) - DONE.
 
 ### M2 - Architecture cleanup
 
@@ -581,7 +615,6 @@ Mac users with notch displays want a fast, glanceable, low-friction utility surf
 
 ### M3 - Product polish
 
-- reintroduce optional metrics cards only when enabled,
 - add diagnostics switch in settings,
 - improve onboarding for permissions.
 
@@ -589,11 +622,10 @@ Mac users with notch displays want a fast, glanceable, low-friction utility surf
 
 ## 16. Immediate Next Tasks
 
-1. Fix animation smoothness (choppy expand/collapse).
-2. Fix file drag-out reliability in real usage.
-3. Fix collapsed panel positioning to be precisely behind physical notch.
-4. Add live focus timer display near notch in collapsed state.
-5. Refactor to multi-file architecture (at least controllers/services separation).
+1. Refactor to multi-file architecture (at least controllers/services separation).
+2. Add unit tests for pure logic (profiles, focus timer, clipboard, size computation).
+3. Improve onboarding UX for permissions (Accessibility, Automation, Reminders).
+4. Consider adding keyboard shortcuts for panel toggle and common actions.
 
 ---
 
@@ -642,10 +674,46 @@ Mac users with notch displays want a fast, glanceable, low-friction utility surf
 - Network initial sample shows "0 B/s" instead of "--"
 - Extracted magic number `-8` to `hoverTolerance` constant
 
+### 2026-02-24 - Apple HIG Design Overhaul
+
+**UI redesign (Apple Human Interface Guidelines):**
+- Replaced flat `Color.black` panel background with `.ultraThinMaterial` (system vibrancy) + dark tint
+- Panel width narrowed from 520 → 380px for compact feel
+- Panel corner radius increased to 24pt continuous squircle
+- Widget cards: 16pt continuous corners, `white.opacity(0.08)` bg, `0.10` border stroke
+- All spacing standardized to 8pt grid (12pt panel padding, 8pt card gaps, 10pt card internal)
+- Typography audit: all text raised to minimum 10pt, most elements +2-3pt
+- Album artwork: 36x36 → 48x48 with shadow
+- Progress bar: 2.5pt → 4pt
+- Play/pause button: 32x32 with circle background
+- All touch targets raised to minimum 24-28pt
+- Collapsed pill: 190x32 with `Color(white: 0.11)` solid background
+
+**Notch-aware header layout:**
+- Split header into two rows: actions + settings on top, metrics below
+- Top row: action buttons (mute, file paste) on left, settings gear on right, nothing in center where physical notch blocks visibility
+- Metrics row: system status indicators displayed below the notch cutout
+
+**System metrics toggle:**
+- Added `showSystemMetrics` master preference toggle
+- New "System Status" GroupBox in Settings with master toggle + individual metric toggles
+- Individual toggles disabled/dimmed when master is off
+- Added persistence key: `notchnook.settings.showSystemMetrics`
+
+**Agent & tooling updates:**
+- Installed Apple HIG Designer skill (`.agents/skills/apple-hig-designer/`)
+- Updated `ui-smoothness-tuner` agent with Apple HIG reference section (typography, colors, spacing, components, accessibility, macOS-specific guidance)
+- Added Core Philosophy to agent prompt (less is more, every pixel earns its place, etc.)
+
+**Documentation:**
+- Updated README.md with Design section, Settings details, Project Structure, Development Tools
+- Updated AI_PROJECT_DOCUMENTATION.md with all changes
+
 ---
 
 ## 19. Final Notes
 
 - Current implementation is feature-rich but tightly coupled.
-- The highest immediate engineering priority is animation smoothness and notch positioning.
-- The highest medium-term priority is modularization and testability.
+- Design is now Apple HIG-compliant with material vibrancy, proper spacing, and notch-aware layout.
+- The highest immediate engineering priority is modularization and testability.
+- The ui-smoothness-tuner agent now includes Apple HIG knowledge for future design reviews.
