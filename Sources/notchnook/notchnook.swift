@@ -10,31 +10,14 @@ import Darwin.Mach
 import Darwin
 import QuartzCore
 import Sparkle
+import ServiceManagement
 
 @main
 struct NotchNookApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra("NotchNook", systemImage: "macwindow.badge.plus") {
-            Button("Toggle Notch") {
-                NotchWindowController.shared.toggleExpanded()
-            }
-            Button("Move to MacBook Screen") {
-                NotchWindowController.shared.reposition()
-            }
-            Button("Settings") {
-                SettingsPresenter.open()
-            }
-            Button("Check for Updates...") {
-                appDelegate.updaterController.checkForUpdates(nil)
-            }
-            Divider()
-            Button("Quit") {
-                NSApplication.shared.terminate(nil)
-            }
-        }
-        .menuBarExtraStyle(.window)
+        Settings { EmptyView() }
     }
 }
 
@@ -87,19 +70,111 @@ struct ClipboardEntry: Identifiable, Hashable, Codable {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    static var sharedUpdater: SPUStandardUpdaterController?
+
     let updaterController = SPUStandardUpdaterController(
         startingUpdater: true,
         updaterDelegate: nil,
         userDriverDelegate: nil
     )
 
+    private var statusItem: NSStatusItem?
+    private var menuBarIconCancellable: AnyCancellable?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppDelegate.sharedUpdater = updaterController
         NSApplication.shared.setActivationPolicy(.accessory)
         NotchWindowController.shared.show()
+
+        // Set up menu bar icon based on preference
+        let prefs = NotchPreferences.shared
+        if prefs.showMenuBarIcon {
+            createStatusItem()
+        }
+        menuBarIconCancellable = prefs.$showMenuBarIcon
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] show in
+                if show {
+                    self?.createStatusItem()
+                } else {
+                    self?.removeStatusItem()
+                }
+            }
+
+        let hasAskedKey = "notchnook.hasAskedAutoStart"
+        if !UserDefaults.standard.bool(forKey: hasAskedKey) {
+            UserDefaults.standard.set(true, forKey: hasAskedKey)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                let alert = NSAlert()
+                alert.messageText = "Launch NotchNook at Login?"
+                alert.informativeText = "Would you like NotchNook to start automatically when you log in?"
+                alert.addButton(withTitle: "Enable")
+                alert.addButton(withTitle: "Not Now")
+                alert.alertStyle = .informational
+                let response = alert.runModal()
+                if response == .alertFirstButtonReturn {
+                    NotchPreferences.shared.launchAtLogin = true
+                }
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        menuBarIconCancellable?.cancel()
+        menuBarIconCancellable = nil
         NotchWindowController.shared.cleanup()
+    }
+
+    private func createStatusItem() {
+        guard statusItem == nil else { return }
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        if let button = item.button {
+            button.image = NSImage(systemSymbolName: "macwindow.badge.plus", accessibilityDescription: "NotchNook")
+        }
+
+        let menu = NSMenu()
+        menu.addItem(withTitle: "Toggle Notch", action: #selector(toggleNotch), keyEquivalent: "")
+            .target = self
+        menu.addItem(withTitle: "Move to MacBook Screen", action: #selector(moveToBuiltIn), keyEquivalent: "")
+            .target = self
+        menu.addItem(withTitle: "Settings", action: #selector(openSettings), keyEquivalent: ",")
+            .target = self
+        menu.addItem(withTitle: "Check for Updates...", action: #selector(checkForUpdates), keyEquivalent: "")
+            .target = self
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Quit NotchNook", action: #selector(quitApp), keyEquivalent: "q")
+            .target = self
+
+        item.menu = menu
+        statusItem = item
+    }
+
+    private func removeStatusItem() {
+        if let item = statusItem {
+            NSStatusBar.system.removeStatusItem(item)
+            statusItem = nil
+        }
+    }
+
+    @objc private func toggleNotch() {
+        NotchWindowController.shared.toggleExpanded()
+    }
+
+    @objc private func moveToBuiltIn() {
+        NotchWindowController.shared.reposition()
+    }
+
+    @objc private func openSettings() {
+        SettingsPresenter.open()
+    }
+
+    @objc private func checkForUpdates() {
+        updaterController.checkForUpdates(nil)
+    }
+
+    @objc private func quitApp() {
+        NSApplication.shared.terminate(nil)
     }
 }
 
@@ -607,6 +682,15 @@ final class NotchWindowController {
 final class NotchPreferences: ObservableObject {
     static let shared = NotchPreferences()
 
+    @Published var showMenuBarIcon = true { didSet { persist(Keys.showMenuBarIcon, showMenuBarIcon) } }
+
+    @Published var launchAtLogin = false {
+        didSet {
+            persist(Keys.launchAtLogin, launchAtLogin)
+            updateLoginItem()
+        }
+    }
+
     @Published var showSystemMetrics = true { didSet { persist(Keys.showSystemMetrics, showSystemMetrics) } }
     @Published var showBattery = true { didSet { persist(Keys.showBattery, showBattery) } }
     @Published var showCPU = true { didSet { persist(Keys.showCPU, showCPU) } }
@@ -680,6 +764,8 @@ final class NotchPreferences: ObservableObject {
         let loadedProfile = readString(Keys.selectedProfile, defaultValue: NotchProfile.work.rawValue)
         selectedProfile = NotchProfile(rawValue: loadedProfile) ?? .work
         autoProfileByActiveApp = readBool(Keys.autoProfileByActiveApp, defaultValue: false)
+        launchAtLogin = readBool(Keys.launchAtLogin, defaultValue: false)
+        showMenuBarIcon = readBool(Keys.showMenuBarIcon, defaultValue: true)
     }
 
     func resetDefaults() {
@@ -703,6 +789,7 @@ final class NotchPreferences: ObservableObject {
         focusMinutes = 25
         breakMinutes = 5
         autoProfileByActiveApp = false
+        launchAtLogin = false
         isApplyingProfile = false
 
         selectedProfile = .work
@@ -838,6 +925,18 @@ final class NotchPreferences: ObservableObject {
         defaults.set(value, forKey: key)
     }
 
+    private func updateLoginItem() {
+        do {
+            if launchAtLogin {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            print("Login item update failed: \(error)")
+        }
+    }
+
     private enum Keys {
         static let showSystemMetrics = "notchnook.settings.showSystemMetrics"
         static let showBattery = "notchnook.settings.showBattery"
@@ -859,6 +958,8 @@ final class NotchPreferences: ObservableObject {
         static let breakMinutes = "notchnook.settings.breakMinutes"
         static let selectedProfile = "notchnook.settings.selectedProfile"
         static let autoProfileByActiveApp = "notchnook.settings.autoProfileByActiveApp"
+        static let launchAtLogin = "notchnook.settings.launchAtLogin"
+        static let showMenuBarIcon = "notchnook.settings.showMenuBarIcon"
     }
 }
 
@@ -912,6 +1013,8 @@ final class NotchModel: ObservableObject {
     private var networkSampler = NetworkSampler()
     private var lastPasteboardChangeCount = NSPasteboard.general.changeCount
 
+    private var focusMinutesCancellable: AnyCancellable?
+    private var breakMinutesCancellable: AnyCancellable?
     private var feedbackToken = UUID()
     private var lastWeatherFetch = Date.distantPast
     private var lastNowPlayingFetch = Date.distantPast
@@ -949,6 +1052,19 @@ final class NotchModel: ObservableObject {
         startStatsTimer()
         startClipboardMonitor()
         observeActiveAppChanges()
+
+        focusMinutesCancellable = preferences.$focusMinutes
+            .dropFirst()
+            .sink { [weak self] newMinutes in
+                guard let self else { return }
+                self.handleFocusDurationChange(newMinutes: newMinutes)
+            }
+        breakMinutesCancellable = preferences.$breakMinutes
+            .dropFirst()
+            .sink { [weak self] newMinutes in
+                guard let self else { return }
+                self.handleBreakDurationChange(newMinutes: newMinutes)
+            }
     }
 
     func cleanup() {
@@ -962,10 +1078,15 @@ final class NotchModel: ObservableObject {
         pingTask?.cancel()
         calendarTask?.cancel()
         artworkTask?.cancel()
+        nowPlayingTask?.cancel()
         if let observer = appActivationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(observer)
             appActivationObserver = nil
         }
+        focusMinutesCancellable?.cancel()
+        focusMinutesCancellable = nil
+        breakMinutesCancellable?.cancel()
+        breakMinutesCancellable = nil
     }
 
     func addFile(_ url: URL) {
@@ -1157,12 +1278,56 @@ final class NotchModel: ObservableObject {
         startFocusTimer()
     }
 
+    func adjustAndStartFocus(delta: Int) {
+        let currentPhaseIsFocus = focusPhase == .idle || focusPhase == .focus || focusPhase == .pausedFocus
+        if currentPhaseIsFocus {
+            preferences.focusMinutes = min(max(preferences.focusMinutes + delta, 5), 120)
+        } else {
+            preferences.breakMinutes = min(max(preferences.breakMinutes + delta, 1), 60)
+        }
+        // Start/restart timer with the new duration
+        focusTimer?.invalidate()
+        focusTimer = nil
+        if focusPhase == .idle {
+            focusPhase = .focus
+        }
+        let seconds = currentPhaseIsFocus ? focusDurationSeconds : breakDurationSeconds
+        focusRemainingSeconds = seconds
+        startFocusTimer()
+    }
+
     func resetFocus() {
         focusTimer?.invalidate()
         focusTimer = nil
         focusPhase = .idle
         focusRemainingSeconds = focusDurationSeconds
         setFeedback("Focus timer reset")
+    }
+
+    private func handleFocusDurationChange(newMinutes: Int) {
+        let newSeconds = max(1, newMinutes) * 60
+        switch focusPhase {
+        case .idle:
+            focusRemainingSeconds = newSeconds
+        case .focus, .pausedFocus:
+            focusRemainingSeconds = newSeconds
+            setFeedback("Focus: \(newMinutes) min")
+        case .breakTime, .pausedBreak:
+            break
+        }
+    }
+
+    private func handleBreakDurationChange(newMinutes: Int) {
+        let newSeconds = max(1, newMinutes) * 60
+        switch focusPhase {
+        case .idle:
+            break
+        case .breakTime, .pausedBreak:
+            focusRemainingSeconds = newSeconds
+            setFeedback("Break: \(newMinutes) min")
+        case .focus, .pausedFocus:
+            break
+        }
     }
 
     func skipFocusPhase() {
@@ -1303,6 +1468,8 @@ final class NotchModel: ObservableObject {
         }
     }
 
+    private var nowPlayingTask: Task<Void, Never>?
+
     private func maybeRefreshNowPlaying(force: Bool) {
         guard preferences.showMediaNowPlaying else {
             nowPlayingValue = "Hidden in settings"
@@ -1317,41 +1484,52 @@ final class NotchModel: ObservableObject {
         guard force || now.timeIntervalSince(lastNowPlayingFetch) >= 2.5 else { return }
         lastNowPlayingFetch = now
 
-        if let info = NowPlayingService.currentInfo() {
-            nowPlayingValue = "\(info.source) • \(info.track)"
-            nowPlayingIsPlaying = info.isPlaying
-            nowPlayingDuration = info.duration
-            nowPlayingPosition = info.position
-            nowPlayingPositionFetchTime = info.fetchTime
+        nowPlayingTask?.cancel()
+        nowPlayingTask = Task { [weak self] in
+            let info = await Task.detached(priority: .userInitiated) {
+                NowPlayingService.currentInfo()
+            }.value
 
-            let artworkKey = info.artworkURL ?? (info.source + info.track)
-            if artworkKey != lastArtworkSource {
-                lastArtworkSource = artworkKey
-                nowPlayingArtwork = nil
-                artworkTask?.cancel()
+            guard !Task.isCancelled else { return }
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                if let info {
+                    self.nowPlayingValue = "\(info.source) • \(info.track)"
+                    self.nowPlayingIsPlaying = info.isPlaying
+                    self.nowPlayingDuration = info.duration
+                    self.nowPlayingPosition = info.position
+                    self.nowPlayingPositionFetchTime = info.fetchTime
 
-                if let data = info.artworkData, let image = NSImage(data: data) {
-                    nowPlayingArtwork = image
-                } else if let urlString = info.artworkURL, let url = URL(string: urlString) {
-                    artworkTask = Task {
-                        do {
-                            let (data, _) = try await URLSession.shared.data(from: url)
-                            if !Task.isCancelled, let image = NSImage(data: data) {
-                                self.nowPlayingArtwork = image
+                    let artworkKey = info.artworkURL ?? (info.source + info.track)
+                    if artworkKey != self.lastArtworkSource {
+                        self.lastArtworkSource = artworkKey
+                        self.nowPlayingArtwork = nil
+                        self.artworkTask?.cancel()
+
+                        if let data = info.artworkData, let image = NSImage(data: data) {
+                            self.nowPlayingArtwork = image
+                        } else if let urlString = info.artworkURL, let url = URL(string: urlString) {
+                            self.artworkTask = Task {
+                                do {
+                                    let (data, _) = try await URLSession.shared.data(from: url)
+                                    if !Task.isCancelled, let image = NSImage(data: data) {
+                                        self.nowPlayingArtwork = image
+                                    }
+                                } catch {}
                             }
-                        } catch {}
+                        }
+                    }
+                } else {
+                    self.nowPlayingValue = "Not playing"
+                    self.nowPlayingIsPlaying = false
+                    self.nowPlayingDuration = nil
+                    self.nowPlayingPosition = nil
+                    if self.lastArtworkSource != nil {
+                        self.lastArtworkSource = nil
+                        self.nowPlayingArtwork = nil
+                        self.artworkTask?.cancel()
                     }
                 }
-            }
-        } else {
-            nowPlayingValue = "Not playing"
-            nowPlayingIsPlaying = false
-            nowPlayingDuration = nil
-            nowPlayingPosition = nil
-            if lastArtworkSource != nil {
-                lastArtworkSource = nil
-                nowPlayingArtwork = nil
-                artworkTask?.cancel()
             }
         }
     }
@@ -1412,7 +1590,7 @@ final class NotchModel: ObservableObject {
             ClipboardEntry(id: UUID(), value: normalized, timestamp: Date()),
             at: 0
         )
-        clipboardEntries = Array(clipboardEntries.prefix(30))
+        clipboardEntries = Array(clipboardEntries.prefix(5))
 
         pinnedClipboardIDs = Set(pinnedClipboardIDs.filter { id in
             clipboardEntries.contains(where: { $0.id == id })
@@ -1870,9 +2048,17 @@ struct FocusTimerView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white.opacity(0.60))
 
+            focusButton(icon: "minus") {
+                model.adjustAndStartFocus(delta: -5)
+            }
+
             Text(model.focusTimeString)
                 .font(.system(size: 15, weight: .bold, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.90))
+
+            focusButton(icon: "plus") {
+                model.adjustAndStartFocus(delta: 5)
+            }
 
             Spacer(minLength: 0)
 
@@ -1903,6 +2089,7 @@ struct FocusTimerView: View {
                 .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
+        .hoverLift(scale: 1.06, hoverOpacity: 1.0)
     }
 }
 
@@ -1953,6 +2140,7 @@ struct ClipboardHistoryView: View {
                                 .frame(width: 24, height: 24)
                         }
                         .buttonStyle(.plain)
+                        .hoverLift(scale: 1.08, hoverOpacity: 1.0)
 
                         Button {
                             model.toggleClipboardPin(entry)
@@ -1963,6 +2151,7 @@ struct ClipboardHistoryView: View {
                                 .frame(width: 24, height: 24)
                         }
                         .buttonStyle(.plain)
+                        .hoverLift(scale: 1.08, hoverOpacity: 1.0)
 
                         Button {
                             model.removeClipboardEntry(entry)
@@ -1973,6 +2162,7 @@ struct ClipboardHistoryView: View {
                                 .frame(width: 24, height: 24)
                         }
                         .buttonStyle(.plain)
+                        .hoverLift(scale: 1.08, hoverOpacity: 1.0)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
@@ -2098,6 +2288,7 @@ struct FileShelfView: View {
                                         .frame(width: 24, height: 24)
                                 }
                                 .buttonStyle(.plain)
+                                .hoverLift(scale: 1.08, hoverOpacity: 1.0)
                             }
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
@@ -2204,6 +2395,7 @@ struct FileShelfView: View {
                 .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
+        .hoverLift(scale: 1.06, hoverOpacity: 1.0)
     }
 }
 
@@ -2407,16 +2599,17 @@ struct NowPlayingStrip: View {
 
             // Controls
             HStack(spacing: 8) {
-                Button { MediaController.previousTrack() } label: {
+                Button { MediaController.previousTrack(source: model.nowPlayingSource) } label: {
                     Image(systemName: "backward.fill")
                         .font(.system(size: 11))
                         .frame(width: 28, height: 28)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white.opacity(0.45))
+                .hoverLift(scale: 1.08, hoverOpacity: 1.0)
 
                 Button {
-                    MediaController.playPause()
+                    MediaController.playPause(source: model.nowPlayingSource)
                     model.nowPlayingIsPlaying.toggle()
                 } label: {
                     Image(systemName: model.nowPlayingIsPlaying ? "pause.fill" : "play.fill")
@@ -2426,14 +2619,16 @@ struct NowPlayingStrip: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white.opacity(0.85))
+                .hoverLift(scale: 1.06, hoverOpacity: 1.0)
 
-                Button { MediaController.nextTrack() } label: {
+                Button { MediaController.nextTrack(source: model.nowPlayingSource) } label: {
                     Image(systemName: "forward.fill")
                         .font(.system(size: 11))
                         .frame(width: 28, height: 28)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white.opacity(0.45))
+                .hoverLift(scale: 1.08, hoverOpacity: 1.0)
             }
 
             // Remaining time
@@ -2458,6 +2653,31 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("NotchNook Settings")
                     .font(.title2.bold())
+
+                GroupBox("General") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Toggle("Launch NotchNook at login", isOn: $preferences.launchAtLogin)
+                        Toggle("Show menu bar icon", isOn: $preferences.showMenuBarIcon)
+                        Divider()
+                        HStack(spacing: 12) {
+                            Button("Toggle Notch") {
+                                NotchWindowController.shared.toggleExpanded()
+                            }
+                            Button("Move to MacBook Screen") {
+                                NotchWindowController.shared.reposition()
+                            }
+                        }
+                        HStack(spacing: 12) {
+                            Button("Check for Updates...") {
+                                AppDelegate.sharedUpdater?.checkForUpdates(nil)
+                            }
+                            Button("Quit NotchNook") {
+                                NSApplication.shared.terminate(nil)
+                            }
+                        }
+                    }
+                    .padding(.top, 8)
+                }
 
                 GroupBox("Profiles") {
                     VStack(alignment: .leading, spacing: 12) {
@@ -2516,21 +2736,6 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.top, 8)
-                }
-
-                GroupBox("Implemented Ideas") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Clipboard history with pin/favorite slots")
-                        Text("Select and drag files directly from File Shelf")
-                        Text("Mini calendar with upcoming reminders")
-                        Text("Focus timer + break timer in notch")
-                        Text("Profiles (work/gaming/meeting)")
-                        Text("Compact notch-first layout")
-                    }
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 8)
                 }
 
@@ -2943,23 +3148,24 @@ private enum NowPlayingService {
     }
 
     static func currentInfo() -> NowPlayingInfo? {
-        if let raw = run(script: spotifyEnhancedScript), !raw.isEmpty,
-           let info = parseEnhancedResult(raw, source: "Spotify", durationInMs: true) {
-            return info
-        }
-        if let raw = run(script: spotifyBundleIDEnhancedScript), !raw.isEmpty,
-           let info = parseEnhancedResult(raw, source: "Spotify", durationInMs: true) {
-            return info
-        }
-        if let raw = run(script: musicEnhancedScript), !raw.isEmpty,
-           let info = parseEnhancedResult(raw, source: "Music", durationInMs: false) {
-            return info
-        }
-        if let raw = run(script: musicBundleIDEnhancedScript), !raw.isEmpty,
-           let info = parseEnhancedResult(raw, source: "Music", durationInMs: false) {
-            return info
+        // Try native apps first — short-circuit within each app but collect across apps
+        var paused: NowPlayingInfo? = nil
+
+        // Spotify (try name, then bundle ID)
+        if let info = tryAppleScript(spotifyEnhancedScript, source: "Spotify", durationInMs: true)
+            ?? tryAppleScript(spotifyBundleIDEnhancedScript, source: "Spotify", durationInMs: true) {
+            if info.isPlaying { return info }
+            if paused == nil { paused = info }
         }
 
+        // Music (try name, then bundle ID)
+        if let info = tryAppleScript(musicEnhancedScript, source: "Music", durationInMs: false)
+            ?? tryAppleScript(musicBundleIDEnhancedScript, source: "Music", durationInMs: false) {
+            if info.isPlaying { return info }
+            if paused == nil { paused = info }
+        }
+
+        // Browser YouTube tabs
         let browserSources: [(String, String)] = [
             (braveYouTubeScript, "YouTube (Brave)"),
             (chromeYouTubeScript, "YouTube (Chrome)"),
@@ -2968,7 +3174,7 @@ private enum NowPlayingService {
         for (script, source) in browserSources {
             if let tabTitle = run(script: script), !tabTitle.isEmpty {
                 let mrInfo = MediaRemoteNowPlayingFallback.currentInfo()
-                return NowPlayingInfo(
+                let info = NowPlayingInfo(
                     track: sanitize(tabTitle),
                     source: source,
                     isPlaying: mrInfo?.isPlaying ?? true,
@@ -2978,10 +3184,23 @@ private enum NowPlayingService {
                     position: mrInfo?.position,
                     fetchTime: Date()
                 )
+                if info.isPlaying { return info }
+                if paused == nil { paused = info }
             }
         }
 
-        return MediaRemoteNowPlayingFallback.currentInfo()
+        // Nothing actively playing — try MediaRemote for system's last active session
+        if let mrInfo = MediaRemoteNowPlayingFallback.currentInfo(), mrInfo.isPlaying {
+            return mrInfo
+        }
+
+        // Fall back to first paused source, or MediaRemote paused info
+        return paused ?? MediaRemoteNowPlayingFallback.currentInfo()
+    }
+
+    private static func tryAppleScript(_ script: String, source: String, durationInMs: Bool) -> NowPlayingInfo? {
+        guard let raw = run(script: script), !raw.isEmpty else { return nil }
+        return parseEnhancedResult(raw, source: source, durationInMs: durationInMs)
     }
 
     private static func parseEnhancedResult(_ raw: String, source: String, durationInMs: Bool) -> NowPlayingInfo? {
@@ -3021,14 +3240,6 @@ private enum NowPlayingService {
     }
 
     private static func run(script: String) -> String? {
-        var error: NSDictionary?
-        guard let appleScript = NSAppleScript(source: script) else { return nil }
-        let result = appleScript.executeAndReturnError(&error)
-
-        if error == nil, let value = result.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
-            return value
-        }
-
         return runViaOSAScript(script)
     }
 
@@ -3059,7 +3270,14 @@ private enum NowPlayingService {
         } catch {
             return nil
         }
+
+        // Timeout: kill process if it takes longer than 2 seconds
+        let timer = DispatchSource.makeTimerSource(queue: .global())
+        timer.schedule(deadline: .now() + 2.0)
+        timer.setEventHandler { process.terminate() }
+        timer.resume()
         process.waitUntilExit()
+        timer.cancel()
 
         guard process.terminationStatus == 0 else { return nil }
         guard let data = try? stdout.fileHandleForReading.readToEnd() else { return nil }
@@ -3484,20 +3702,87 @@ private enum MediaRemoteNowPlayingFallback {
 }
 
 private enum MediaController {
-    private static let mediaKeyPlayPause: Int32 = 16
-    private static let mediaKeyNext: Int32 = 17
-    private static let mediaKeyPrevious: Int32 = 18
+    // MRMediaRemoteSendCommand constants
+    private static let kMRPlay: Int = 0
+    private static let kMRPause: Int = 1
+    private static let kMRTogglePlayPause: Int = 2
+    private static let kMRNextTrack: Int = 4
+    private static let kMRPreviousTrack: Int = 5
 
-    static func playPause() {
-        postMediaKey(mediaKeyPlayPause)
+    private typealias SendCommandFunction = @convention(c) (Int, UnsafeRawPointer?) -> Bool
+
+    private static let sendCommand: SendCommandFunction? = {
+        let paths = [
+            "/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote",
+            "/System/Library/PrivateFrameworks/MediaRemote.framework/Versions/A/MediaRemote",
+        ]
+        for path in paths {
+            guard let handle = dlopen(path, RTLD_LAZY) else { continue }
+            if let symbol = dlsym(handle, "MRMediaRemoteSendCommand") {
+                return unsafeBitCast(symbol, to: SendCommandFunction.self)
+            }
+        }
+        return nil
+    }()
+
+    static func playPause(source: String = "") {
+        if source.contains("Spotify") {
+            runAppleScript("""
+            if application "Spotify" is running then
+                tell application "Spotify" to playpause
+            end if
+            """)
+        } else if source == "Music" {
+            runAppleScript("""
+            if application "Music" is running then
+                tell application "Music" to playpause
+            end if
+            """)
+        } else {
+            _ = sendCommand?(kMRTogglePlayPause, nil)
+        }
     }
 
-    static func nextTrack() {
-        postMediaKey(mediaKeyNext)
+    static func nextTrack(source: String = "") {
+        if source.contains("Spotify") {
+            runAppleScript("""
+            if application "Spotify" is running then
+                tell application "Spotify" to next track
+            end if
+            """)
+        } else if source == "Music" {
+            runAppleScript("""
+            if application "Music" is running then
+                tell application "Music" to next track
+            end if
+            """)
+        } else {
+            _ = sendCommand?(kMRNextTrack, nil)
+        }
     }
 
-    static func previousTrack() {
-        postMediaKey(mediaKeyPrevious)
+    static func previousTrack(source: String = "") {
+        if source.contains("Spotify") {
+            runAppleScript("""
+            if application "Spotify" is running then
+                tell application "Spotify"
+                    if player position > 3 then
+                        set player position to 0
+                    else
+                        previous track
+                    end if
+                end tell
+            end if
+            """)
+        } else if source == "Music" {
+            runAppleScript("""
+            if application "Music" is running then
+                tell application "Music" to back track
+            end if
+            """)
+        } else {
+            _ = sendCommand?(kMRPreviousTrack, nil)
+        }
     }
 
     static func toggleMute() {
@@ -3507,34 +3792,37 @@ private enum MediaController {
         """)
     }
 
-    private static func postMediaKey(_ key: Int32) {
-        post(event: key, keyDown: true)
-        post(event: key, keyDown: false)
-    }
-
-    private static func post(event key: Int32, keyDown: Bool) {
-        let state = keyDown ? 0xA : 0xB
-        let data1 = Int((key << 16) | (Int32(state) << 8))
-
-        guard let event = NSEvent.otherEvent(
-            with: .systemDefined,
-            location: .zero,
-            modifierFlags: NSEvent.ModifierFlags(rawValue: 0xA00),
-            timestamp: 0,
-            windowNumber: 0,
-            context: nil,
-            subtype: 8,
-            data1: data1,
-            data2: -1
-        ) else {
-            return
-        }
-
-        event.cgEvent?.post(tap: .cghidEventTap)
-    }
-
     static func runAppleScript(_ source: String) {
-        var error: NSDictionary?
-        NSAppleScript(source: source)?.executeAndReturnError(&error)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let lines = source
+                .split(whereSeparator: \.isNewline)
+                .map { String($0) }
+                .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            guard !lines.isEmpty else { return }
+
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            var args: [String] = []
+            for line in lines {
+                args.append("-e")
+                args.append(line)
+            }
+            process.arguments = args
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+
+            do {
+                try process.run()
+            } catch {
+                return
+            }
+
+            let timer = DispatchSource.makeTimerSource(queue: .global())
+            timer.schedule(deadline: .now() + 3.0)
+            timer.setEventHandler { process.terminate() }
+            timer.resume()
+            process.waitUntilExit()
+            timer.cancel()
+        }
     }
 }
