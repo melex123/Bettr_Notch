@@ -29,5 +29,13 @@
         <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
         <enclosure url="https://github.com/melex123/Bettr_Notch/releases/download/v1.3.0/NotchNook-1.3.0.dmg" length="3115816" type="application/octet-stream" sparkle:edSignature="xQmhMzOmpNnszib14VR6mGPwZa+zO3nOwAeUH1vIl4vHj/iM1vHyIGKIhqoXHn9MlyH5+dLOvAVi7xHiyfeaAA==" />
       </item>
+      <item>
+        <title>NotchNook 1.3.0</title>
+        <pubDate>Thu, 26 Feb 2026 00:58:07 +0100</pubDate>
+        <sparkle:version>1.3.0</sparkle:version>
+        <sparkle:shortVersionString>1.3.0</sparkle:shortVersionString>
+        <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        <enclosure url="https://github.com/melex123/Bettr_Notch/releases/download/v1.3.0/NotchNook-1.3.0.dmg" length="3162807" type="application/octet-stream" sparkle:edSignature="R1guLhE7ZaJ20HXb/UGCKh1+D45LR8NZrlE0Ygf0gUDABa2SqVmb4R7hG3F7X+dDW9V6XJx0jFpiR0X8IYBcBw==" />
+      </item>
   </channel>
 </rss>

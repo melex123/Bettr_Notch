@@ -1635,13 +1635,15 @@ final class NotchModel: ObservableObject {
 
         let reminders: [ReminderSnapshot] = await withCheckedContinuation { continuation in
             eventStore.fetchReminders(matching: predicate) { fetched in
-                let snapshots = (fetched ?? []).map {
-                    ReminderSnapshot(
-                        title: $0.title.isEmpty ? "Untitled reminder" : $0.title,
-                        dueDate: $0.dueDateComponents?.date
-                    )
+                DispatchQueue.main.async {
+                    let snapshots = (fetched ?? []).map {
+                        ReminderSnapshot(
+                            title: $0.title ?? "Untitled reminder",
+                            dueDate: $0.dueDateComponents?.date
+                        )
+                    }
+                    continuation.resume(returning: snapshots)
                 }
-                continuation.resume(returning: snapshots)
             }
         }
 
@@ -1685,7 +1687,9 @@ final class NotchModel: ObservableObject {
         } else {
             reminderAccessGranted = await withCheckedContinuation { continuation in
                 eventStore.requestAccess(to: .reminder) { granted, _ in
-                    continuation.resume(returning: granted)
+                    DispatchQueue.main.async {
+                        continuation.resume(returning: granted)
+                    }
                 }
             }
         }
