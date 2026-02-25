@@ -1,5 +1,35 @@
 # CLAUDE.md
 
+## ⚠️ CRITICAL SAFETY RULES
+
+You are running with `--dangerously-skip-permissions`. The following rules are ABSOLUTE and must NEVER be violated:
+
+### Workspace Boundary
+- The project workspace (working directory) is your ONLY allowed operating area
+- You may freely create, edit, delete, and modify ANY files WITHIN the workspace
+- You may run ANY commands that operate WITHIN the workspace
+
+### FORBIDDEN Actions (NEVER do these)
+- **NEVER** delete, modify, move, or overwrite files OUTSIDE the workspace directory
+- **NEVER** run `rm`, `mv`, `cp`, or any destructive command targeting paths outside the workspace
+- **NEVER** modify system files, configs outside workspace, or anything in `~/.` directories (except `~/.claude/`)
+- **NEVER** run commands like `rm -rf /`, `rm -rf ~`, or any recursive delete on parent directories
+- **NEVER** modify `/etc/`, `/usr/`, `/var/`, `/home/` (outside workspace), or any OS-level paths
+- **NEVER** install global packages or modify global system state
+- **NEVER** change environment variables system-wide
+
+### Before ANY file operation outside workspace:
+- STOP and ask the user for explicit permission
+- If uncertain whether a path is inside or outside workspace, treat it as OUTSIDE
+
+### What you CAN do freely (no permission needed):
+- All file operations within the project workspace
+- Run build commands, tests, linters within workspace
+- Install project-local dependencies (npm install, pip install in venv, etc.)
+- Git operations within the workspace repo
+- Create/edit/delete any project files
+- Run any scripts that only affect the workspace
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Build Commands
@@ -33,7 +63,7 @@ No tests exist. Manual QA only.
 | `NotchNookApp` | `@main` App entry (minimal — menu bar handled by AppDelegate) |
 | `AppDelegate` | Owns `SPUStandardUpdaterController`, `NSStatusItem` menu bar icon, login item, cleanup |
 | `NotchWindowController` | Singleton — borderless NSWindow, positioning, expand/collapse, hover activation |
-| `SettingsWindowController` | Separate NSWindow for settings (480x560) |
+| `SettingsWindowController` | Separate NSWindow for settings (500x640) |
 | `NotchPreferences` | `ObservableObject` — all user toggles, profiles, UserDefaults persistence |
 | `NotchModel` | `ObservableObject` — central app state, timers, async data fetching, Combine observers |
 | `NowPlayingService` | Collect-then-prioritize media source detection (Spotify, Music, browsers, MediaRemote) |
@@ -41,7 +71,8 @@ No tests exist. Manual QA only.
 | `NotchRootView` | Root SwiftUI view — ZStack toggling `CollapsedNotch` / `ExpandedNotch` |
 | `CollapsedNotch` | Pill-shaped collapsed state (190x32 or 240x32) |
 | `ExpandedNotch` | Main panel body (380x460 max) containing all widget views |
-| `SettingsView` | Settings UI with General, Profiles, Quick Actions, System Status, Panels |
+| `SettingsView` | Settings UI — card-based layout with SF Symbol icons, 6 sections |
+| `SettingsCard` / `SettingsRow` | Reusable settings components: cards, icon rows, toggle rows, dividers, action buttons |
 
 **All `@MainActor final` classes.** Heavy use of `@MainActor` for AppKit interop.
 
@@ -67,6 +98,18 @@ NSHostingView bypasses all AppKit-level clipping, so corner radius must be appli
 - Typography: SF system font, minimum 10pt, semantic sizing
 - Color hierarchy: white at 0.85 (primary), 0.55 (secondary), 0.30 (tertiary)
 - No blur/vibrancy, no shadow — fully opaque dark panel
+
+## Settings UI
+
+The settings window (500x640) uses a custom card-based design inspired by macOS System Settings:
+
+- **`SettingsSectionHeader`** — uppercase section label with letter-spacing
+- **`SettingsCard`** — rounded container with subtle background/border
+- **`SettingsRow`** / **`SettingsToggleRow`** — icon badge + title + optional subtitle + trailing control
+- **`SettingsRowDivider`** — indented divider (aligned past the icon column)
+- **`SettingsActionButton`** — full-width button with icon for the Actions grid
+
+Each setting has an SF Symbol icon in a colored rounded-rect badge (26x26). Sections: General, Profiles, Quick Actions, System Status, Panels, Actions.
 
 ## Versioning & Release
 

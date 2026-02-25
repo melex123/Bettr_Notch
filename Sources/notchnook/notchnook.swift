@@ -204,10 +204,10 @@ final class SettingsWindowController {
 
     private func createWindow() {
         let rootView = SettingsView()
-            .frame(width: 480, height: 560)
+            .frame(width: 500, height: 640)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 640),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -2645,111 +2645,331 @@ struct NowPlayingStrip: View {
     }
 }
 
+// MARK: - Settings View
+
+private struct SettingsSectionHeader: View {
+    let title: String
+    var body: some View {
+        Text(title)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+            .tracking(0.5)
+    }
+}
+
+private struct SettingsCard<Content: View>: View {
+    @ViewBuilder let content: Content
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            content
+        }
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 0.5)
+        )
+    }
+}
+
+private struct SettingsRow<Trailing: View>: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    var subtitle: String? = nil
+    @ViewBuilder let trailing: Trailing
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white)
+                .frame(width: 26, height: 26)
+                .background(iconColor, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 13))
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            trailing
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+}
+
+private struct SettingsToggleRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    var subtitle: String? = nil
+    @Binding var isOn: Bool
+
+    var body: some View {
+        SettingsRow(icon: icon, iconColor: iconColor, title: title, subtitle: subtitle) {
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+        }
+    }
+}
+
+private struct SettingsRowDivider: View {
+    var body: some View {
+        Divider()
+            .padding(.leading, 48)
+    }
+}
+
+private struct SettingsActionButton: View {
+    let icon: String
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .medium))
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 7)
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 struct SettingsView: View {
     @ObservedObject private var preferences = NotchPreferences.shared
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("NotchNook Settings")
-                    .font(.title2.bold())
+            VStack(alignment: .leading, spacing: 20) {
 
-                GroupBox("General") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Toggle("Launch NotchNook at login", isOn: $preferences.launchAtLogin)
-                        Toggle("Show menu bar icon", isOn: $preferences.showMenuBarIcon)
-                        Divider()
-                        HStack(spacing: 12) {
-                            Button("Toggle Notch") {
-                                NotchWindowController.shared.toggleExpanded()
-                            }
-                            Button("Move to MacBook Screen") {
-                                NotchWindowController.shared.reposition()
-                            }
-                        }
-                        HStack(spacing: 12) {
-                            Button("Check for Updates...") {
-                                AppDelegate.sharedUpdater?.checkForUpdates(nil)
-                            }
-                            Button("Quit NotchNook") {
-                                NSApplication.shared.terminate(nil)
-                            }
-                        }
+                // MARK: General
+                VStack(alignment: .leading, spacing: 8) {
+                    SettingsSectionHeader(title: "General")
+                    SettingsCard {
+                        SettingsToggleRow(
+                            icon: "power", iconColor: .green,
+                            title: "Launch at Login",
+                            subtitle: "Start NotchNook when you log in",
+                            isOn: $preferences.launchAtLogin
+                        )
+                        SettingsRowDivider()
+                        SettingsToggleRow(
+                            icon: "menubar.rectangle", iconColor: .blue,
+                            title: "Menu Bar Icon",
+                            subtitle: "Show icon in the menu bar",
+                            isOn: $preferences.showMenuBarIcon
+                        )
                     }
-                    .padding(.top, 8)
                 }
 
-                GroupBox("Profiles") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Picker("Profile", selection: $preferences.selectedProfile) {
-                            ForEach(NotchProfile.allCases) { profile in
-                                Text(profile.label).tag(profile)
+                // MARK: Profiles
+                VStack(alignment: .leading, spacing: 8) {
+                    SettingsSectionHeader(title: "Profiles")
+                    SettingsCard {
+                        VStack(alignment: .leading, spacing: 0) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "person.2")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 26, height: 26)
+                                    .background(Color.purple, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                Picker("", selection: $preferences.selectedProfile) {
+                                    ForEach(NotchProfile.allCases) { profile in
+                                        Text(profile.label).tag(profile)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                                .labelsHidden()
                             }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
                         }
-                        .pickerStyle(.segmented)
-
-                        Toggle("Auto-switch profile by active app", isOn: $preferences.autoProfileByActiveApp)
-                        Text("Gaming/meeting apps can auto-apply the matching profile.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        SettingsRowDivider()
+                        SettingsToggleRow(
+                            icon: "arrow.triangle.swap", iconColor: .purple,
+                            title: "Auto-Switch by App",
+                            subtitle: "Gaming/meeting apps apply matching profile",
+                            isOn: $preferences.autoProfileByActiveApp
+                        )
                     }
-                    .padding(.top, 8)
                 }
 
-                GroupBox("Quick Actions") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Toggle("Now Playing + Media Controls", isOn: $preferences.showMediaNowPlaying)
-                        Toggle("Mute Button", isOn: $preferences.showMuteAction)
-                        Toggle("File Paste Button", isOn: $preferences.showFilePasteAction)
+                // MARK: Quick Actions
+                VStack(alignment: .leading, spacing: 8) {
+                    SettingsSectionHeader(title: "Quick Actions")
+                    SettingsCard {
+                        SettingsToggleRow(
+                            icon: "play.circle", iconColor: .pink,
+                            title: "Now Playing + Media",
+                            isOn: $preferences.showMediaNowPlaying
+                        )
+                        SettingsRowDivider()
+                        SettingsToggleRow(
+                            icon: "speaker.slash", iconColor: .orange,
+                            title: "Mute Button",
+                            isOn: $preferences.showMuteAction
+                        )
+                        SettingsRowDivider()
+                        SettingsToggleRow(
+                            icon: "doc.on.clipboard", iconColor: .teal,
+                            title: "File Paste Button",
+                            isOn: $preferences.showFilePasteAction
+                        )
                     }
-                    .padding(.top, 8)
                 }
 
-                GroupBox("System Status") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Toggle("Show System Metrics", isOn: $preferences.showSystemMetrics)
+                // MARK: System Status
+                VStack(alignment: .leading, spacing: 8) {
+                    SettingsSectionHeader(title: "System Status")
+                    SettingsCard {
+                        SettingsToggleRow(
+                            icon: "gauge.with.dots.needle.bottom.50percent", iconColor: .indigo,
+                            title: "System Metrics",
+                            subtitle: "Show hardware stats in panel",
+                            isOn: $preferences.showSystemMetrics
+                        )
                         Group {
-                            Toggle("Battery", isOn: $preferences.showBattery)
-                            Toggle("CPU", isOn: $preferences.showCPU)
-                            Toggle("RAM", isOn: $preferences.showRAM)
-                            Toggle("GPU", isOn: $preferences.showGPU)
-                            Toggle("Weather", isOn: $preferences.showWeather)
+                            SettingsRowDivider()
+                            SettingsToggleRow(
+                                icon: "battery.75percent", iconColor: .green,
+                                title: "Battery",
+                                isOn: $preferences.showBattery
+                            )
+                            SettingsRowDivider()
+                            SettingsToggleRow(
+                                icon: "cpu", iconColor: .blue,
+                                title: "CPU",
+                                isOn: $preferences.showCPU
+                            )
+                            SettingsRowDivider()
+                            SettingsToggleRow(
+                                icon: "memorychip", iconColor: .orange,
+                                title: "RAM",
+                                isOn: $preferences.showRAM
+                            )
+                            SettingsRowDivider()
+                            SettingsToggleRow(
+                                icon: "gpu", iconColor: .purple,
+                                title: "GPU",
+                                isOn: $preferences.showGPU
+                            )
+                            SettingsRowDivider()
+                            SettingsToggleRow(
+                                icon: "cloud.sun", iconColor: .cyan,
+                                title: "Weather",
+                                isOn: $preferences.showWeather
+                            )
                         }
                         .disabled(!preferences.showSystemMetrics)
                         .opacity(preferences.showSystemMetrics ? 1.0 : 0.5)
                     }
-                    .padding(.top, 8)
                 }
 
-                GroupBox("Panels") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Toggle("File Shelf", isOn: $preferences.showFileShelf)
-                        Toggle("Clipboard History (pin/favorite slots)", isOn: $preferences.showClipboardHistory)
-                        Toggle("Mini Calendar + Upcoming Reminders", isOn: $preferences.showMiniCalendar)
-                        Toggle("Focus + Break Timer", isOn: $preferences.showFocusTimer)
-                        HStack(spacing: 16) {
-                            Stepper("Focus: \(preferences.focusMinutes) min", value: $preferences.focusMinutes, in: 5...120, step: 1)
-                            Stepper("Break: \(preferences.breakMinutes) min", value: $preferences.breakMinutes, in: 1...60, step: 1)
+                // MARK: Panels
+                VStack(alignment: .leading, spacing: 8) {
+                    SettingsSectionHeader(title: "Panels")
+                    SettingsCard {
+                        SettingsToggleRow(
+                            icon: "tray", iconColor: .blue,
+                            title: "File Shelf",
+                            isOn: $preferences.showFileShelf
+                        )
+                        SettingsRowDivider()
+                        SettingsToggleRow(
+                            icon: "clipboard", iconColor: .yellow,
+                            title: "Clipboard History",
+                            subtitle: "Pin & favorite slots",
+                            isOn: $preferences.showClipboardHistory
+                        )
+                        SettingsRowDivider()
+                        SettingsToggleRow(
+                            icon: "calendar", iconColor: .red,
+                            title: "Mini Calendar",
+                            subtitle: "Upcoming reminders",
+                            isOn: $preferences.showMiniCalendar
+                        )
+                        SettingsRowDivider()
+                        SettingsToggleRow(
+                            icon: "timer", iconColor: .mint,
+                            title: "Focus Timer",
+                            isOn: $preferences.showFocusTimer
+                        )
+                        Group {
+                            SettingsRowDivider()
+                            HStack(spacing: 12) {
+                                Spacer().frame(width: 36)
+                                Stepper("Focus: \(preferences.focusMinutes) min", value: $preferences.focusMinutes, in: 5...120, step: 1)
+                                    .font(.system(size: 12))
+                                Spacer()
+                                Stepper("Break: \(preferences.breakMinutes) min", value: $preferences.breakMinutes, in: 1...60, step: 1)
+                                    .font(.system(size: 12))
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
                         }
                         .disabled(!preferences.showFocusTimer)
-                        Text("Hover trigger: 200x15 notch zone on the MacBook screen")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        .opacity(preferences.showFocusTimer ? 1.0 : 0.5)
                     }
-                    .padding(.top, 8)
                 }
 
-                HStack(spacing: 12) {
-                    Spacer()
-                    Button("Apply Selected Profile") {
-                        preferences.applySelectedProfile()
+                // MARK: Actions
+                VStack(alignment: .leading, spacing: 8) {
+                    SettingsSectionHeader(title: "Actions")
+                    HStack(spacing: 8) {
+                        SettingsActionButton(icon: "arrow.triangle.2.circlepath", title: "Toggle Notch") {
+                            NotchWindowController.shared.toggleExpanded()
+                        }
+                        SettingsActionButton(icon: "display", title: "Move to MacBook") {
+                            NotchWindowController.shared.reposition()
+                        }
                     }
-                    Button("Reset Defaults") {
-                        preferences.resetDefaults()
+                    HStack(spacing: 8) {
+                        SettingsActionButton(icon: "arrow.down.circle", title: "Check for Updates") {
+                            AppDelegate.sharedUpdater?.checkForUpdates(nil)
+                        }
+                        SettingsActionButton(icon: "checkmark.circle", title: "Apply Profile") {
+                            preferences.applySelectedProfile()
+                        }
+                    }
+                    HStack(spacing: 8) {
+                        SettingsActionButton(icon: "arrow.counterclockwise", title: "Reset Defaults") {
+                            preferences.resetDefaults()
+                        }
+                        SettingsActionButton(icon: "xmark.circle", title: "Quit NotchNook") {
+                            NSApplication.shared.terminate(nil)
+                        }
                     }
                 }
+
+                Text("Hover trigger: 200\u{00D7}15 pt notch zone on MacBook screen")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, -4)
             }
-            .padding(20)
+            .padding(24)
         }
     }
 }
