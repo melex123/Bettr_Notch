@@ -12,6 +12,8 @@ APPCAST="appcast.xml"
 TAG="v${VERSION}"
 DMG_FILENAME="$(basename "$DMG_PATH")"
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${DMG_FILENAME}"
+# Build number from git commit count — must match CFBundleVersion in the built app
+BUILD_NUMBER=$(git rev-list --count HEAD 2>/dev/null || echo 1)
 
 # --- Locate Sparkle sign_update tool ---
 SIGN_UPDATE=".build/artifacts/sparkle/Sparkle/bin/sign_update"
@@ -82,7 +84,7 @@ echo "Updating ${APPCAST}..."
 NEW_ITEM="      <item>
         <title>${APP_NAME} ${VERSION}</title>
         <pubDate>${PUB_DATE}</pubDate>
-        <sparkle:version>${VERSION}</sparkle:version>
+        <sparkle:version>${BUILD_NUMBER}</sparkle:version>
         <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
         <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
         <enclosure ${ENCLOSURE_ATTRS} />
