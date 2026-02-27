@@ -722,7 +722,6 @@ final class NotchPreferences: ObservableObject {
     @Published var showFocusTimer = false { didSet { persist(Keys.showFocusTimer, showFocusTimer) } }
     @Published var showQuickNotes = true { didSet { persist(Keys.showQuickNotes, showQuickNotes) } }
     @Published var quickNotes = "" { didSet { persist(Keys.quickNotes, quickNotes) } }
-    @Published var showSpotifyWidget = true { didSet { persist(Keys.showSpotifyWidget, showSpotifyWidget) } }
     @Published var focusMinutes = 25 {
         didSet {
             let clamped = min(max(focusMinutes, 5), 120)
@@ -776,7 +775,6 @@ final class NotchPreferences: ObservableObject {
         showFocusTimer = readBool(Keys.showFocusTimer, defaultValue: false)
         showQuickNotes = readBool(Keys.showQuickNotes, defaultValue: true)
         quickNotes = readString(Keys.quickNotes, defaultValue: "")
-        showSpotifyWidget = readBool(Keys.showSpotifyWidget, defaultValue: true)
         focusMinutes = readInt(Keys.focusMinutes, defaultValue: 25)
         breakMinutes = readInt(Keys.breakMinutes, defaultValue: 5)
 
@@ -813,7 +811,6 @@ final class NotchPreferences: ObservableObject {
         showFocusTimer = false
         showQuickNotes = true
         quickNotes = ""
-        showSpotifyWidget = true
         focusMinutes = 25
         breakMinutes = 5
         autoProfileByActiveApp = false
@@ -867,7 +864,6 @@ final class NotchPreferences: ObservableObject {
             showMiniCalendar = true
             showFocusTimer = true
             showQuickNotes = true
-            showSpotifyWidget = true
             focusMinutes = 25
             breakMinutes = 5
         case .gaming:
@@ -887,7 +883,6 @@ final class NotchPreferences: ObservableObject {
             showMiniCalendar = false
             showFocusTimer = true
             showQuickNotes = true
-            showSpotifyWidget = true
             focusMinutes = 45
             breakMinutes = 10
         case .meeting:
@@ -907,7 +902,6 @@ final class NotchPreferences: ObservableObject {
             showMiniCalendar = true
             showFocusTimer = true
             showQuickNotes = true
-            showSpotifyWidget = false
             focusMinutes = 20
             breakMinutes = 5
         }
@@ -1001,7 +995,6 @@ final class NotchPreferences: ObservableObject {
         static let showFocusTimer = "notchnook.settings.showFocusTimer"
         static let showQuickNotes = "notchnook.settings.showQuickNotes"
         static let quickNotes = "notchnook.settings.quickNotes"
-        static let showSpotifyWidget = "notchnook.settings.showSpotifyWidget"
         static let focusMinutes = "notchnook.settings.focusMinutes"
         static let breakMinutes = "notchnook.settings.breakMinutes"
         static let selectedProfile = "notchnook.settings.selectedProfile"
@@ -1089,7 +1082,6 @@ final class NotchModel: ObservableObject {
             if preferences.showMiniCalendar { height += 64 }
             if preferences.showFileShelf { height += 88 }
             if preferences.showQuickNotes { height += 110 }
-            if preferences.showSpotifyWidget && isSpotifySource { height += 120 }
             return NSSize(width: 380, height: min(height, 460))
         }
         if hasLiveFocusWidget {
@@ -1261,10 +1253,6 @@ final class NotchModel: ObservableObject {
 
     var isNowPlaying: Bool {
         preferences.showMediaNowPlaying && nowPlayingValue != "Not playing" && nowPlayingValue != "Hidden in settings"
-    }
-
-    var isSpotifySource: Bool {
-        nowPlayingValue.hasPrefix("Spotify")
     }
 
     /// The media source icon based on what's currently playing.
@@ -1557,17 +1545,6 @@ final class NotchModel: ObservableObject {
                     self.nowPlayingDuration = info.duration
                     self.nowPlayingPosition = info.position
                     self.nowPlayingPositionFetchTime = info.fetchTime
-
-                    // Update Spotify-specific state
-                    if info.source == "Spotify" {
-                        self.spotifyAlbum = info.album ?? ""
-                        self.spotifyShuffle = info.shuffling ?? false
-                        self.spotifyRepeat = info.repeating ?? false
-                    } else {
-                        self.spotifyAlbum = ""
-                        self.spotifyShuffle = false
-                        self.spotifyRepeat = false
-                    }
 
                     let artworkKey = info.artworkURL ?? (info.source + info.track)
                     if artworkKey != self.lastArtworkSource {
@@ -2006,11 +1983,7 @@ struct ExpandedNotch: View {
                 ForEach(preferences.panelOrder) { slot in
                     switch slot {
                     case .nowPlaying:
-                        if preferences.showSpotifyWidget && model.isSpotifySource {
-                            SpotifyWidgetView(model: model)
-                        } else if preferences.showMediaNowPlaying {
-                            NowPlayingStrip(model: model)
-                        }
+                        if preferences.showMediaNowPlaying { NowPlayingStrip(model: model) }
                     case .focusTimer:
                         if preferences.showFocusTimer { FocusTimerView(model: model) }
                     case .clipboard:
@@ -2752,156 +2725,6 @@ struct NowPlayingStrip: View {
     }
 }
 
-struct SpotifyWidgetView: View {
-    @ObservedObject var model: NotchModel
-
-    var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 12) {
-                // Larger artwork
-                if let artwork = model.nowPlayingArtwork {
-                    Image(nsImage: artwork)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 64, height: 64)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
-                } else {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color.green.opacity(0.15))
-                        Image(systemName: "music.note")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundStyle(.green.opacity(0.6))
-                    }
-                    .frame(width: 64, height: 64)
-                }
-
-                // Track info
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(model.nowPlayingShortTitle)
-                        .font(.system(size: 13, weight: .semibold))
-                        .lineLimit(1)
-                        .foregroundStyle(.white.opacity(0.90))
-
-                    if !model.nowPlayingSource.isEmpty {
-                        let artist = model.nowPlayingShortTitle.components(separatedBy: " — ").first ?? ""
-                        if !artist.isEmpty && model.nowPlayingShortTitle.contains(" — ") {
-                            Text(artist)
-                                .font(.system(size: 11))
-                                .lineLimit(1)
-                                .foregroundStyle(.white.opacity(0.55))
-                        }
-                    }
-
-                    if !model.spotifyAlbum.isEmpty {
-                        Text(model.spotifyAlbum)
-                            .font(.system(size: 11))
-                            .lineLimit(1)
-                            .foregroundStyle(.white.opacity(0.40))
-                    }
-                }
-
-                Spacer(minLength: 0)
-            }
-
-            // Progress bar
-            if let progress = model.nowPlayingProgress {
-                HStack(spacing: 8) {
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule()
-                                .fill(Color.white.opacity(0.08))
-                                .frame(height: 4)
-                            Capsule()
-                                .fill(Color.green.opacity(0.7))
-                                .frame(width: max(4, geo.size.width * progress), height: 4)
-                        }
-                    }
-                    .frame(height: 4)
-
-                    if let remaining = model.nowPlayingRemainingText {
-                        Text(remaining)
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.35))
-                    }
-                }
-            }
-
-            // Controls row
-            HStack(spacing: 12) {
-                // Shuffle
-                Button {
-                    MediaController.toggleSpotifyShuffle()
-                    model.spotifyShuffle.toggle()
-                } label: {
-                    Image(systemName: "shuffle")
-                        .font(.system(size: 11, weight: .medium))
-                        .frame(width: 28, height: 28)
-                        .foregroundStyle(model.spotifyShuffle ? .green : .white.opacity(0.35))
-                }
-                .buttonStyle(.plain)
-                .hoverLift(scale: 1.08, hoverOpacity: 1.0)
-
-                Spacer()
-
-                // Prev
-                Button { MediaController.previousTrack(source: "Spotify") } label: {
-                    Image(systemName: "backward.fill")
-                        .font(.system(size: 12))
-                        .frame(width: 32, height: 32)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.55))
-                .hoverLift(scale: 1.08, hoverOpacity: 1.0)
-
-                // Play/Pause
-                Button {
-                    MediaController.playPause(source: "Spotify")
-                    model.nowPlayingIsPlaying.toggle()
-                } label: {
-                    Image(systemName: model.nowPlayingIsPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 16, weight: .medium))
-                        .frame(width: 36, height: 36)
-                        .background(Color.green.opacity(0.20), in: Circle())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.90))
-                .hoverLift(scale: 1.06, hoverOpacity: 1.0)
-
-                // Next
-                Button { MediaController.nextTrack(source: "Spotify") } label: {
-                    Image(systemName: "forward.fill")
-                        .font(.system(size: 12))
-                        .frame(width: 32, height: 32)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.55))
-                .hoverLift(scale: 1.08, hoverOpacity: 1.0)
-
-                Spacer()
-
-                // Repeat
-                Button {
-                    MediaController.toggleSpotifyRepeat()
-                    model.spotifyRepeat.toggle()
-                } label: {
-                    Image(systemName: "repeat")
-                        .font(.system(size: 11, weight: .medium))
-                        .frame(width: 28, height: 28)
-                        .foregroundStyle(model.spotifyRepeat ? .green : .white.opacity(0.35))
-                }
-                .buttonStyle(.plain)
-                .hoverLift(scale: 1.08, hoverOpacity: 1.0)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 0.5))
-    }
-}
-
 // MARK: - Settings View
 
 private struct SettingsSectionHeader: View {
@@ -3174,14 +2997,6 @@ struct SettingsView: View {
                         )
                     }
 
-                    SettingsCard {
-                        SettingsToggleRow(
-                            icon: "music.note", iconColor: .green,
-                            title: "Spotify Widget",
-                            subtitle: "Rich Spotify controls with album & shuffle",
-                            isOn: $preferences.showSpotifyWidget
-                        )
-                    }
                 }
 
                 // MARK: Actions
@@ -3658,10 +3473,6 @@ private struct NowPlayingInfo {
     let duration: Double?
     let position: Double?
     let fetchTime: Date
-    // Spotify-specific extended info
-    var album: String?
-    var shuffling: Bool?
-    var repeating: Bool?
 }
 
 private enum NowPlayingService {
@@ -3737,20 +3548,9 @@ private enum NowPlayingService {
         let duration = durationInMs ? rawDuration / 1000.0 : rawDuration
         let position = Double(parts[3]) ?? 0
         let artist = parts[4]
-        let title = parts[5]
+        let title = parts.dropFirst(5).joined(separator: "\t")
         let track = artist.isEmpty ? title : "\(artist) — \(title)"
         guard !track.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-
-        // Parse Spotify-specific extended fields (album, shuffling, repeating)
-        var album: String? = nil
-        var shuffling: Bool? = nil
-        var repeating: Bool? = nil
-        if parts.count >= 9 {
-            album = parts[6].isEmpty ? nil : parts[6]
-            shuffling = parts[7] == "true"
-            repeating = parts[8] == "true"
-        }
-
         return NowPlayingInfo(
             track: sanitize(track),
             source: source,
@@ -3759,10 +3559,7 @@ private enum NowPlayingService {
             artworkData: nil,
             duration: duration > 0 ? duration : nil,
             position: position > 0 ? position : nil,
-            fetchTime: Date(),
-            album: album,
-            shuffling: shuffling,
-            repeating: repeating
+            fetchTime: Date()
         )
     }
 
@@ -3855,22 +3652,7 @@ private enum NowPlayingService {
                 on error
                     set trackPosition to 0
                 end try
-                try
-                    set trackAlbum to album of current track
-                on error
-                    set trackAlbum to ""
-                end try
-                try
-                    set isShuffling to shuffling
-                on error
-                    set isShuffling to false
-                end try
-                try
-                    set isRepeating to repeating
-                on error
-                    set isRepeating to false
-                end try
-                return playerState & sep & artURL & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackName & sep & trackAlbum & sep & (isShuffling as text) & sep & (isRepeating as text)
+                return playerState & sep & artURL & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackName
             end if
         end tell
     end if
@@ -3908,22 +3690,7 @@ private enum NowPlayingService {
                 on error
                     set trackPosition to 0
                 end try
-                try
-                    set trackAlbum to album of current track
-                on error
-                    set trackAlbum to ""
-                end try
-                try
-                    set isShuffling to shuffling
-                on error
-                    set isShuffling to false
-                end try
-                try
-                    set isRepeating to repeating
-                on error
-                    set isRepeating to false
-                end try
-                return playerState & sep & artURL & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackName & sep & trackAlbum & sep & (isShuffling as text) & sep & (isRepeating as text)
+                return playerState & sep & artURL & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackName
             end if
         end tell
     end if
@@ -4352,26 +4119,6 @@ private enum MediaController {
         } else {
             _ = sendCommand?(kMRPreviousTrack, nil)
         }
-    }
-
-    static func toggleSpotifyShuffle() {
-        runAppleScript("""
-        if application "Spotify" is running then
-            tell application "Spotify"
-                set shuffling to not shuffling
-            end tell
-        end if
-        """)
-    }
-
-    static func toggleSpotifyRepeat() {
-        runAppleScript("""
-        if application "Spotify" is running then
-            tell application "Spotify"
-                set repeating to not repeating
-            end tell
-        end if
-        """)
     }
 
     static func toggleMute() {
