@@ -227,6 +227,10 @@ final class SettingsWindowController {
     }
 }
 
+final class NotchPanel: NSWindow {
+    override var canBecomeKey: Bool { true }
+}
+
 @MainActor
 final class NotchWindowController {
     static let shared = NotchWindowController()
@@ -338,7 +342,7 @@ final class NotchWindowController {
         let size = model.currentSize
         let content = NotchRootView(model: model)
 
-        let window = NSWindow(
+        let window = NotchPanel(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless],
             backing: .buffered,

@@ -8,10 +8,10 @@
       <item>
         <title>NotchNook 1.4.0</title>
         <pubDate>Fri, 27 Feb 2026 16:12:25 +0100</pubDate>
-        <sparkle:version>17</sparkle:version>
+        <sparkle:version>18</sparkle:version>
         <sparkle:shortVersionString>1.4.0</sparkle:shortVersionString>
         <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-        <enclosure url="https://github.com/melex123/Bettr_Notch/releases/download/v1.4.0/NotchNook-1.4.0.dmg" length="3221654" type="application/octet-stream" sparkle:edSignature="KJ8AgTP0Dn8U6XBHQRca5Yvgj7f0x3tlgSdBtzqnnk2DtZnysCEMs6LsMlP733RaW6d8JIhSVsBZI4dr8Fv2Dg==" />
+        <enclosure url="https://github.com/melex123/Bettr_Notch/releases/download/v1.4.0/NotchNook-1.4.0.dmg" length="3222953" type="application/octet-stream" sparkle:edSignature="S/4PRe7jIFZRhdTfe+ZTKEaD43wfhHwYzJlZjvdM4LwtGM4gp2ZK11oa+HQIwR62uzdCf4WgjLTBbjvYrHVGAg==" />
       </item>
   </channel>
 </rss>
