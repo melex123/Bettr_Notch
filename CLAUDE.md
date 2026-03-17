@@ -54,7 +54,7 @@ No tests exist. Manual QA only.
 
 ## Architecture
 
-**Single-file monolith:** All application code lives in `Sources/notchnook/notchnook.swift` (~3800 lines). Swift 6.2, macOS 14+, single dependency (Sparkle 2.6.0 for auto-updates).
+**Single-file monolith:** All application code lives in `Sources/notchnook/notchnook.swift` (~3900 lines). Swift 6.2, macOS 14+, single dependency (Sparkle 2.6.0 for auto-updates).
 
 **Key classes/structs (top to bottom):**
 
@@ -62,7 +62,8 @@ No tests exist. Manual QA only.
 |-----------|-------------|
 | `NotchNookApp` | `@main` App entry (minimal — menu bar handled by AppDelegate) |
 | `AppDelegate` | Owns `SPUStandardUpdaterController`, `NSStatusItem` menu bar icon, login item, cleanup |
-| `NotchWindowController` | Singleton — borderless NSWindow, positioning, expand/collapse, hover activation |
+| `NotchPanel` | `NSWindow` subclass with `canBecomeKey = true` — enables keyboard input in borderless window |
+| `NotchWindowController` | Singleton — borderless NotchPanel, positioning, expand/collapse, hover activation |
 | `SettingsWindowController` | Separate NSWindow for settings (500x640) |
 | `NotchPreferences` | `ObservableObject` — all user toggles, profiles, UserDefaults persistence |
 | `NotchModel` | `ObservableObject` — central app state, timers, async data fetching, Combine observers |
@@ -71,6 +72,7 @@ No tests exist. Manual QA only.
 | `NotchRootView` | Root SwiftUI view — ZStack toggling `CollapsedNotch` / `ExpandedNotch` |
 | `CollapsedNotch` | Pill-shaped collapsed state (190x32 or 240x32) |
 | `ExpandedNotch` | Main panel body (380x460 max) containing all widget views |
+| `QuickNotesView` | Persistent multi-line text notes widget with UserDefaults auto-save |
 | `SettingsView` | Settings UI — card-based layout with SF Symbol icons, 6 sections |
 | `SettingsCard` / `SettingsRow` | Reusable settings components: cards, icon rows, toggle rows, dividers, action buttons |
 
@@ -81,7 +83,7 @@ No tests exist. Manual QA only.
 The panel is a borderless, transparent NSWindow at `.statusBar` level. An opaque `CALayer` sits behind the SwiftUI content to prevent macOS compositor transparency near the notch area. This is critical — SwiftUI backgrounds become transparent when overlapping the menu bar/notch, but Core Animation layers do not.
 
 ```
-NSWindow (borderless, no shadow, .statusBar level)
+NotchPanel (borderless, canBecomeKey, no shadow, .statusBar level)
 └── NSView (containerView)
     ├── CALayer (backingLayer) — opaque gray(0.08), cornerRadius 24
     └── NSHostingView → NotchRootView → ZStack → ExpandedNotch/CollapsedNotch
@@ -119,6 +121,7 @@ Each setting has an SF Symbol icon in a colored rounded-rect badge (26x26). Sect
 - Sparkle EdDSA public key is hardcoded in `dist/Info.plist`
 - Sparkle private key lives in macOS Keychain (used by `sign_update` automatically)
 - Release script (`scripts/release.sh`) creates GitHub Release and updates `appcast.xml`
+- **Critical:** `sparkle:version` in appcast must be the **build number** (matching `CFBundleVersion`), NOT the marketing version. Sparkle compares this numerically — using semver like "1.4.0" against build number "16" causes false "up to date" results
 - Remote: `origin https://github.com/melex123/Bettr_Notch.git`
 
 ## Menu Bar Icon
@@ -143,6 +146,14 @@ The menu bar icon uses AppKit's `NSStatusItem` managed by `AppDelegate` (not Swi
 - All AppleScript runs off-main-thread via `osascript` Process with 3s timeout
 
 **Critical:** `NSAppleScript` is NOT thread-safe — always use `Process("/usr/bin/osascript")` for background execution.
+
+## Quick Notes (v1.4.0)
+
+`QuickNotesView` — a persistent multi-line text area in the expanded panel. Notes auto-save to UserDefaults via `NotchPreferences.quickNotes`. Toggle: `showQuickNotes` in Settings > Panels.
+
+- `TextEditor` bound to `$preferences.quickNotes`
+- 80px tall, dark card styling matching other widgets
+- Requires `NotchPanel` (NSWindow subclass with `canBecomeKey = true`) for keyboard input — standard borderless windows don't accept text input
 
 ## Auto-start
 

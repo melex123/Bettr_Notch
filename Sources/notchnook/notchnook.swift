@@ -1033,9 +1033,6 @@ final class NotchModel: ObservableObject {
     @Published var nowPlayingDuration: Double? = nil
     @Published var nowPlayingPosition: Double? = nil
     @Published var nowPlayingArtwork: NSImage? = nil
-    @Published var spotifyAlbum: String = ""
-    @Published var spotifyShuffle: Bool = false
-    @Published var spotifyRepeat: Bool = false
     private var nowPlayingPositionFetchTime: Date = .distantPast
     private var lastArtworkSource: String? = nil
     private var artworkTask: Task<Void, Never>?
@@ -1876,6 +1873,7 @@ struct CollapsedNotch: View {
     private var focusLiveActivityView: some View {
         HStack(spacing: 6) {
             Image(systemName: model.focusPhaseTitle == "Focus" ? "brain.head.profile" : "cup.and.saucer.fill")
+                .contentTransition(.symbolEffect(.replace))
                 .font(.system(size: 11, weight: .bold))
             Text(model.focusPhaseTitle)
                 .font(.system(size: 11, weight: .semibold))
@@ -1898,13 +1896,22 @@ struct ExpandedNotch: View {
     @ObservedObject private var preferences = NotchPreferences.shared
     @State private var dropActive = false
     @State private var isHovering = false
+    @State private var widgetAppeared = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             headerRow
+                .offset(y: widgetAppeared ? 0 : 6)
+                .animation(.spring(response: 0.35, dampingFraction: 0.82).delay(0), value: widgetAppeared)
             contentSections
         }
         .padding(12)
+        .onAppear {
+            if !widgetAppeared {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { widgetAppeared = true }
+            }
+        }
+        .onDisappear { widgetAppeared = false }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(white: 0.08))
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -1980,31 +1987,58 @@ struct ExpandedNotch: View {
     private var contentSections: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(preferences.panelOrder) { slot in
+                ForEach(Array(preferences.panelOrder.enumerated()), id: \.element) { index, slot in
                     switch slot {
                     case .nowPlaying:
-                        if preferences.showMediaNowPlaying { NowPlayingStrip(model: model) }
+                        if preferences.showMediaNowPlaying {
+                            NowPlayingStrip(model: model)
+                                .staggerIn(appeared: widgetAppeared, index: index + 1)
+                        }
                     case .focusTimer:
-                        if preferences.showFocusTimer { FocusTimerView(model: model) }
+                        if preferences.showFocusTimer {
+                            FocusTimerView(model: model)
+                                .staggerIn(appeared: widgetAppeared, index: index + 1)
+                        }
                     case .clipboard:
-                        if preferences.showClipboardHistory { ClipboardHistoryView(model: model) }
+                        if preferences.showClipboardHistory {
+                            ClipboardHistoryView(model: model)
+                                .staggerIn(appeared: widgetAppeared, index: index + 1)
+                        }
                     case .calendar:
-                        if preferences.showMiniCalendar { MiniCalendarView(model: model) }
+                        if preferences.showMiniCalendar {
+                            MiniCalendarView(model: model)
+                                .staggerIn(appeared: widgetAppeared, index: index + 1)
+                        }
                     case .fileShelf:
-                        if preferences.showFileShelf { FileShelfView(model: model, dropActive: $dropActive) }
+                        if preferences.showFileShelf {
+                            FileShelfView(model: model, dropActive: $dropActive)
+                                .staggerIn(appeared: widgetAppeared, index: index + 1)
+                        }
                     }
                 }
 
-                if preferences.showQuickNotes { QuickNotesView() }
+                if preferences.showQuickNotes {
+                    QuickNotesView()
+                        .staggerIn(appeared: widgetAppeared, index: preferences.panelOrder.count + 1)
+                }
 
                 if !model.actionFeedback.isEmpty {
-                    Text(model.actionFeedback)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.cyan.opacity(0.85))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12))
+                        Text(model.actionFeedback)
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(.cyan.opacity(0.85))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.85).combined(with: .opacity),
+                        removal: .opacity
+                    ))
                 }
             }
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: model.actionFeedback.isEmpty)
         }
     }
 
@@ -2036,6 +2070,7 @@ struct ExpandedNotch: View {
 
 struct QuickNotesView: View {
     @ObservedObject private var preferences = NotchPreferences.shared
+    @State private var isCardHovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -2062,8 +2097,10 @@ struct QuickNotesView: View {
                 .padding(.bottom, 4)
         }
         .padding(.vertical, 4)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 0.5))
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.white.opacity(isCardHovering ? 0.18 : 0.10), lineWidth: 0.5))
+        .animation(.easeInOut(duration: 0.18), value: isCardHovering)
+        .onHover { isCardHovering = $0 }
     }
 }
 
@@ -2116,10 +2153,12 @@ struct QuickActionsRowView: View {
 
 struct FocusTimerView: View {
     @ObservedObject var model: NotchModel
+    @State private var isCardHovering = false
 
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: model.focusPhaseTitle == "Focus" ? "brain.head.profile" : "cup.and.saucer.fill")
+                .contentTransition(.symbolEffect(.replace))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.cyan.opacity(0.7))
                 .frame(width: 16)
@@ -2156,13 +2195,16 @@ struct FocusTimerView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 10)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 0.5))
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.white.opacity(isCardHovering ? 0.18 : 0.10), lineWidth: 0.5))
+        .animation(.easeInOut(duration: 0.18), value: isCardHovering)
+        .onHover { isCardHovering = $0 }
     }
 
     private func focusButton(icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
+                .contentTransition(.symbolEffect(.replace))
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.55))
                 .frame(width: 28, height: 28)
@@ -2175,6 +2217,7 @@ struct FocusTimerView: View {
 
 struct ClipboardHistoryView: View {
     @ObservedObject var model: NotchModel
+    @State private var isCardHovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -2217,7 +2260,7 @@ struct ClipboardHistoryView: View {
                             Image(systemName: "doc.on.doc")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.white.opacity(0.40))
-                                .frame(width: 24, height: 24)
+                                .frame(width: 28, height: 28)
                         }
                         .buttonStyle(.plain)
                         .hoverLift(scale: 1.08, hoverOpacity: 1.0)
@@ -2228,7 +2271,8 @@ struct ClipboardHistoryView: View {
                             Image(systemName: model.isClipboardPinned(entry) ? "star.fill" : "star")
                                 .font(.system(size: 10))
                                 .foregroundStyle(model.isClipboardPinned(entry) ? .yellow.opacity(0.7) : .white.opacity(0.30))
-                                .frame(width: 24, height: 24)
+                                .frame(width: 28, height: 28)
+                                .contentTransition(.symbolEffect(.replace))
                         }
                         .buttonStyle(.plain)
                         .hoverLift(scale: 1.08, hoverOpacity: 1.0)
@@ -2239,7 +2283,7 @@ struct ClipboardHistoryView: View {
                             Image(systemName: "xmark")
                                 .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(.white.opacity(0.25))
-                                .frame(width: 24, height: 24)
+                                .frame(width: 28, height: 28)
                         }
                         .buttonStyle(.plain)
                         .hoverLift(scale: 1.08, hoverOpacity: 1.0)
@@ -2251,13 +2295,16 @@ struct ClipboardHistoryView: View {
         }
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 0.5))
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.white.opacity(isCardHovering ? 0.18 : 0.10), lineWidth: 0.5))
+        .animation(.easeInOut(duration: 0.18), value: isCardHovering)
+        .onHover { isCardHovering = $0 }
     }
 }
 
 struct MiniCalendarView: View {
     @ObservedObject var model: NotchModel
+    @State private var isCardHovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -2295,14 +2342,17 @@ struct MiniCalendarView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 10)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 0.5))
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.white.opacity(isCardHovering ? 0.18 : 0.10), lineWidth: 0.5))
+        .animation(.easeInOut(duration: 0.18), value: isCardHovering)
+        .onHover { isCardHovering = $0 }
     }
 }
 
 struct FileShelfView: View {
     @ObservedObject var model: NotchModel
     @Binding var dropActive: Bool
+    @State private var isCardHovering = false
     // Drag state is tracked by FileShelfDraggingSource.shared.isDragging
 
     var body: some View {
@@ -2344,7 +2394,8 @@ struct FileShelfView: View {
                                     Image(systemName: model.isShelfSelected(file) ? "checkmark.circle.fill" : "circle")
                                         .font(.system(size: 12))
                                         .foregroundStyle(model.isShelfSelected(file) ? .white.opacity(0.70) : .white.opacity(0.30))
-                                        .frame(width: 24, height: 24)
+                                        .frame(width: 28, height: 28)
+                                        .contentTransition(.symbolEffect(.replace))
                                 }
                                 .buttonStyle(.plain)
 
@@ -2365,7 +2416,7 @@ struct FileShelfView: View {
                                     Image(systemName: "xmark")
                                         .font(.system(size: 9, weight: .bold))
                                         .foregroundStyle(.white.opacity(0.25))
-                                        .frame(width: 24, height: 24)
+                                        .frame(width: 28, height: 28)
                                 }
                                 .buttonStyle(.plain)
                                 .hoverLift(scale: 1.08, hoverOpacity: 1.0)
@@ -2392,11 +2443,14 @@ struct FileShelfView: View {
         }
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(dropActive ? Color.cyan.opacity(0.40) : Color.white.opacity(0.10), lineWidth: dropActive ? 1.0 : 0.5)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(dropActive ? Color.cyan.opacity(0.40) : Color.white.opacity(isCardHovering ? 0.18 : 0.10), lineWidth: dropActive ? 1.0 : 0.5)
         )
+        .animation(.easeInOut(duration: 0.18), value: isCardHovering)
+        .animation(.easeInOut(duration: 0.18), value: dropActive)
+        .onHover { isCardHovering = $0 }
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: $dropActive, perform: handleDrop(providers:))
     }
 
@@ -2600,29 +2654,45 @@ struct QuickActionButton: View {
 
 private struct HoverLiftModifier: ViewModifier {
     @State private var isHovering = false
+    @State private var isPressed = false
 
     var scale: CGFloat
+    var pressScale: CGFloat
     var hoverOpacity: Double
 
     func body(content: Content) -> some View {
         content
-            .scaleEffect(isHovering ? scale : 1.0)
+            .scaleEffect(isPressed ? pressScale : (isHovering ? scale : 1.0))
             .opacity(isHovering ? hoverOpacity : 1.0)
             .animation(.easeInOut(duration: 0.14), value: isHovering)
+            .animation(.easeInOut(duration: 0.08), value: isPressed)
             .onHover { hovering in
                 isHovering = hovering
             }
+            .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
+                isPressed = pressing
+            }, perform: {})
     }
 }
 
 private extension View {
-    func hoverLift(scale: CGFloat = 1.05, hoverOpacity: Double = 1.0) -> some View {
-        modifier(HoverLiftModifier(scale: scale, hoverOpacity: hoverOpacity))
+    func hoverLift(scale: CGFloat = 1.05, pressScale: CGFloat = 0.94, hoverOpacity: Double = 1.0) -> some View {
+        modifier(HoverLiftModifier(scale: scale, pressScale: pressScale, hoverOpacity: hoverOpacity))
+    }
+
+    func staggerIn(appeared: Bool, index: Int) -> some View {
+        self
+            .offset(y: appeared ? 0 : 6)
+            .animation(
+                .spring(response: 0.35, dampingFraction: 0.82).delay(Double(index) * 0.04),
+                value: appeared
+            )
     }
 }
 
 struct NowPlayingStrip: View {
     @ObservedObject var model: NotchModel
+    @State private var isCardHovering = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -2659,18 +2729,21 @@ struct NowPlayingStrip: View {
                             .foregroundStyle(.white.opacity(0.40))
                             .layoutPriority(1)
                     }
-                    if let progress = model.nowPlayingProgress {
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(Color.white.opacity(0.08))
-                                    .frame(height: 4)
-                                Capsule()
-                                    .fill(Color.white.opacity(0.40))
-                                    .frame(width: max(4, geo.size.width * progress), height: 4)
+                    TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+                        if let progress = model.nowPlayingProgress {
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    Capsule()
+                                        .fill(Color.white.opacity(0.08))
+                                        .frame(height: 4)
+                                    Capsule()
+                                        .fill(Color.white.opacity(0.40))
+                                        .frame(width: max(4, geo.size.width * progress), height: 4)
+                                        .animation(.linear(duration: 0.5), value: progress)
+                                }
                             }
+                            .frame(height: 4)
                         }
-                        .frame(height: 4)
                     }
                 }
             }
@@ -2693,6 +2766,7 @@ struct NowPlayingStrip: View {
                     model.nowPlayingIsPlaying.toggle()
                 } label: {
                     Image(systemName: model.nowPlayingIsPlaying ? "pause.fill" : "play.fill")
+                        .contentTransition(.symbolEffect(.replace))
                         .font(.system(size: 14, weight: .medium))
                         .frame(width: 32, height: 32)
                         .background(Color.white.opacity(0.10), in: Circle())
@@ -2720,8 +2794,10 @@ struct NowPlayingStrip: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 10)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 0.5))
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.white.opacity(isCardHovering ? 0.18 : 0.10), lineWidth: 0.5))
+        .animation(.easeInOut(duration: 0.18), value: isCardHovering)
+        .onHover { isCardHovering = $0 }
     }
 }
 

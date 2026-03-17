@@ -27,13 +27,13 @@ NotchNook is a floating panel that lives behind your MacBook's notch. Hover over
 The UI follows Apple Human Interface Guidelines with:
 
 - **Material vibrancy** — `.ultraThinMaterial` panel background for system-integrated blur
-- **Continuous squircle corners** — 24pt panel, 16pt widget cards, 8pt buttons (`.continuous` style)
+- **Continuous squircle corners** — 24pt panel, 12pt widget cards, 8pt buttons (`.continuous` style); card radius is concentric with panel (outer 24pt - 12pt padding = 12pt inner)
 - **8-point grid spacing** — all padding and margins on Apple's standard grid
 - **Notch-aware header layout** — action buttons on left, settings on right, nothing in the center where the notch blocks visibility. Metrics appear in a second row below the notch
 - **Box-style widget cards** — each widget is a distinct card with subtle border and background separation
 - **Compact form factor** — 380px wide panel optimized for glanceability
 - **HIG typography** — minimum 10pt text, semantic sizing, SF system font
-- **Proper touch targets** — minimum 24-28pt for all interactive elements
+- **Proper touch targets** — minimum 28pt for small controls (clipboard, file shelf); larger for primary actions
 
 ## Requirements
 
