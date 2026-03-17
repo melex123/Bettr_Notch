@@ -2,7 +2,7 @@
 
 All notable changes to NotchNook are documented here.
 
-## [Unreleased] — UI Polish Session (2026-03-17)
+## [1.5.0] — 2026-03-17
 
 ### Changed
 
