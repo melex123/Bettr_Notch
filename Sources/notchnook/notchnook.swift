@@ -1312,26 +1312,30 @@ final class NotchModel: ObservableObject {
 
     func openNowPlayingSource() {
         let source = nowPlayingSource
-        if source.hasPrefix("Spotify"), let uri = nowPlayingTrackURI, let url = URL(string: uri) {
+        if source.hasPrefix("Spotify"),
+           let uri = nowPlayingTrackURI,
+           let url = URL(string: uri),
+           url.scheme == "spotify" {
             NSWorkspace.shared.open(url)
-        } else if source.hasPrefix("Spotify") {
-            NSWorkspace.shared.open(URL(string: "spotify:")!)
+            return
+        }
+
+        let bundleID: String?
+        if source.hasPrefix("Spotify") {
+            bundleID = "com.spotify.client"
+        } else if source.hasPrefix("Music") {
+            bundleID = "com.apple.Music"
+        } else if source.contains("Brave") {
+            bundleID = "com.brave.Browser"
+        } else if source.contains("Chrome") {
+            bundleID = "com.google.Chrome"
+        } else if source.contains("Safari") {
+            bundleID = "com.apple.Safari"
         } else {
-            let bundleID: String?
-            if source.hasPrefix("Music") {
-                bundleID = "com.apple.Music"
-            } else if source.contains("Brave") {
-                bundleID = "com.brave.Browser"
-            } else if source.contains("Chrome") {
-                bundleID = "com.google.Chrome"
-            } else if source.contains("Safari") {
-                bundleID = "com.apple.Safari"
-            } else {
-                bundleID = nil
-            }
-            if let bundleID, let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-                NSWorkspace.shared.openApplication(at: appURL, configuration: NSWorkspace.OpenConfiguration())
-            }
+            bundleID = nil
+        }
+        if let bundleID, let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+            NSWorkspace.shared.openApplication(at: appURL, configuration: NSWorkspace.OpenConfiguration())
         }
     }
 
@@ -1590,7 +1594,7 @@ final class NotchModel: ObservableObject {
 
                         if let data = info.artworkData, let image = NSImage(data: data) {
                             self.nowPlayingArtwork = image
-                        } else if let urlString = info.artworkURL, let url = URL(string: urlString) {
+                        } else if let urlString = info.artworkURL, let url = URL(string: urlString), url.scheme == "https" {
                             self.artworkTask = Task {
                                 do {
                                     let (data, _) = try await URLSession.shared.data(from: url)
@@ -2740,7 +2744,7 @@ struct NowPlayingStrip: View {
     @State private var isCardHovering = false
 
     private var trackIdentity: String {
-        model.nowPlayingShortTitle + (model.nowPlayingArtist ?? "")
+        model.nowPlayingShortTitle + (model.nowPlayingArtist ?? "") + (model.nowPlayingAlbum ?? "")
     }
 
     var body: some View {
@@ -2853,21 +2857,23 @@ struct NowPlayingStrip: View {
                 }
             }
 
-            // Full-width progress bar
-            TimelineView(.periodic(from: .now, by: 0.5)) { _ in
-                if let progress = model.nowPlayingProgress {
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule()
-                                .fill(Color.white.opacity(0.08))
-                                .frame(height: 4)
-                            Capsule()
-                                .fill(Color.white.opacity(0.40))
-                                .frame(width: max(4, geo.size.width * progress), height: 4)
-                                .animation(.linear(duration: 0.5), value: progress)
+            // Full-width progress bar — only present when duration is known
+            if model.nowPlayingDuration != nil {
+                TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+                    if let progress = model.nowPlayingProgress {
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color.white.opacity(0.08))
+                                    .frame(height: 4)
+                                Capsule()
+                                    .fill(Color.white.opacity(0.40))
+                                    .frame(width: max(4, geo.size.width * progress), height: 4)
+                                    .animation(.linear(duration: 0.5), value: progress)
+                            }
                         }
+                        .frame(height: 4)
                     }
-                    .frame(height: 4)
                 }
             }
         }
@@ -3734,7 +3740,7 @@ private enum NowPlayingService {
             track: sanitize(track),
             artist: artist.isEmpty ? nil : artist,
             title: title.isEmpty ? nil : sanitize(title),
-            album: album,
+            album: album?.trimmingCharacters(in: .whitespacesAndNewlines),
             source: source,
             isPlaying: isPlaying,
             artworkURL: artworkURL,
