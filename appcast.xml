@@ -6,6 +6,14 @@
     <description>NotchNook update feed</description>
     <language>en</language>
       <item>
+        <title>NotchNook 1.6.1</title>
+        <pubDate>Fri, 10 Apr 2026 01:20:03 +0200</pubDate>
+        <sparkle:version>30</sparkle:version>
+        <sparkle:shortVersionString>1.6.1</sparkle:shortVersionString>
+        <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+        <enclosure url="https://github.com/melex123/Bettr_Notch/releases/download/v1.6.1/NotchNook-1.6.1.dmg" length="2975263" type="application/octet-stream" sparkle:edSignature="pc25bFieaWQYEGkK/BBlOHclDr98renbPtqRnHX25z1CMHe5G6i5/5frBDYaL4lVyWKk4PW4wLcYduegLGnsDw==" />
+      </item>
+      <item>
         <title>NotchNook 1.6.0</title>
         <pubDate>Fri, 10 Apr 2026 00:54:21 +0200</pubDate>
         <sparkle:version>25</sparkle:version>
