@@ -2800,11 +2800,10 @@ struct NowPlayingStrip: View {
                             }
                         }
                     }
+                    .id(identity)
+                    .transition(.opacity)
                 }
                 .buttonStyle(.plain)
-                .hoverLift(scale: 1.02, hoverOpacity: 1.0)
-                .id(identity)
-                .transition(.opacity)
 
                 Spacer(minLength: 0)
 
