@@ -1036,6 +1036,7 @@ final class NotchModel: ObservableObject {
     @Published var nowPlayingArtist: String? = nil
     @Published var nowPlayingTrackTitle: String? = nil
     @Published var nowPlayingAlbum: String? = nil
+    @Published var nowPlayingTrackURI: String? = nil
     private var nowPlayingPositionFetchTime: Date = .distantPast
     private var lastArtworkSource: String? = nil
     private var artworkTask: Task<Void, Never>?
@@ -1309,6 +1310,31 @@ final class NotchModel: ObservableObject {
         return min(1.0, max(0.0, current / duration))
     }
 
+    func openNowPlayingSource() {
+        let source = nowPlayingSource
+        if source.hasPrefix("Spotify"), let uri = nowPlayingTrackURI, let url = URL(string: uri) {
+            NSWorkspace.shared.open(url)
+        } else if source.hasPrefix("Spotify") {
+            NSWorkspace.shared.open(URL(string: "spotify:")!)
+        } else {
+            let bundleID: String?
+            if source.hasPrefix("Music") {
+                bundleID = "com.apple.Music"
+            } else if source.contains("Brave") {
+                bundleID = "com.brave.Browser"
+            } else if source.contains("Chrome") {
+                bundleID = "com.google.Chrome"
+            } else if source.contains("Safari") {
+                bundleID = "com.apple.Safari"
+            } else {
+                bundleID = nil
+            }
+            if let bundleID, let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+                NSWorkspace.shared.openApplication(at: appURL, configuration: NSWorkspace.OpenConfiguration())
+            }
+        }
+    }
+
     func toggleFocus() {
         if focusPhase.isRunning {
             pauseFocus()
@@ -1529,6 +1555,7 @@ final class NotchModel: ObservableObject {
             nowPlayingArtist = nil
             nowPlayingTrackTitle = nil
             nowPlayingAlbum = nil
+            nowPlayingTrackURI = nil
             return
         }
 
@@ -1554,6 +1581,7 @@ final class NotchModel: ObservableObject {
                     self.nowPlayingArtist = info.artist
                     self.nowPlayingTrackTitle = info.title
                     self.nowPlayingAlbum = info.album
+                    self.nowPlayingTrackURI = info.trackURI
 
                     let artworkKey = info.artworkURL ?? (info.source + info.track)
                     if artworkKey != self.lastArtworkSource {
@@ -1583,6 +1611,7 @@ final class NotchModel: ObservableObject {
                     self.nowPlayingArtist = nil
                     self.nowPlayingTrackTitle = nil
                     self.nowPlayingAlbum = nil
+                    self.nowPlayingTrackURI = nil
                     if self.lastArtworkSource != nil {
                         self.lastArtworkSource = nil
                         self.nowPlayingArtwork = nil
@@ -2738,40 +2767,44 @@ struct NowPlayingStrip: View {
                     .frame(width: 56, height: 56)
                 }
 
-                // Track info
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(model.nowPlayingShortTitle)
-                        .font(.system(size: 13, weight: .semibold))
-                        .lineLimit(1)
-                        .foregroundStyle(.white.opacity(0.90))
-                        .contentTransition(.opacity)
-
-                    if let artist = model.nowPlayingArtist, !artist.isEmpty {
-                        Text(artist)
-                            .font(.system(size: 11))
+                // Track info — tap to open source app
+                Button { model.openNowPlayingSource() } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(model.nowPlayingShortTitle)
+                            .font(.system(size: 13, weight: .semibold))
                             .lineLimit(1)
-                            .foregroundStyle(.white.opacity(0.55))
+                            .foregroundStyle(.white.opacity(0.90))
                             .contentTransition(.opacity)
-                    }
 
-                    HStack(spacing: 4) {
-                        if !model.nowPlayingSource.isEmpty {
-                            Text(model.nowPlayingSource)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.white.opacity(0.40))
-                        }
-                        if let album = model.nowPlayingAlbum, !album.isEmpty {
-                            Text("·")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.white.opacity(0.25))
-                            Text(album)
-                                .font(.system(size: 10))
+                        if let artist = model.nowPlayingArtist, !artist.isEmpty {
+                            Text(artist)
+                                .font(.system(size: 11))
                                 .lineLimit(1)
-                                .foregroundStyle(.white.opacity(0.35))
+                                .foregroundStyle(.white.opacity(0.55))
                                 .contentTransition(.opacity)
+                        }
+
+                        HStack(spacing: 4) {
+                            if !model.nowPlayingSource.isEmpty {
+                                Text(model.nowPlayingSource)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.white.opacity(0.40))
+                            }
+                            if let album = model.nowPlayingAlbum, !album.isEmpty {
+                                Text("·")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.white.opacity(0.25))
+                                Text(album)
+                                    .font(.system(size: 10))
+                                    .lineLimit(1)
+                                    .foregroundStyle(.white.opacity(0.35))
+                                    .contentTransition(.opacity)
+                            }
                         }
                     }
                 }
+                .buttonStyle(.plain)
+                .hoverLift(scale: 1.02, hoverOpacity: 1.0)
                 .id(trackIdentity)
                 .transition(.opacity)
 
@@ -3596,6 +3629,7 @@ private struct NowPlayingInfo {
     let isPlaying: Bool
     let artworkURL: String?
     let artworkData: Data?
+    let trackURI: String?
     let duration: Double?
     let position: Double?
     let fetchTime: Date
@@ -3645,6 +3679,7 @@ private enum NowPlayingService {
                     isPlaying: mrInfo?.isPlaying ?? true,
                     artworkURL: nil,
                     artworkData: mrInfo?.artworkData,
+                    trackURI: nil,
                     duration: mrInfo?.duration,
                     position: mrInfo?.position,
                     fetchTime: Date()
@@ -3678,12 +3713,19 @@ private enum NowPlayingService {
         let position = Double(parts[3]) ?? 0
         let artist = parts[4]
         let album: String?
+        let trackURI: String?
         let title: String
-        if parts.count >= 7 {
+        if parts.count >= 8 {
             album = parts[5].isEmpty ? nil : parts[5]
+            trackURI = parts[6].isEmpty ? nil : parts[6]
+            title = parts.dropFirst(7).joined(separator: "\t")
+        } else if parts.count >= 7 {
+            album = parts[5].isEmpty ? nil : parts[5]
+            trackURI = nil
             title = parts.dropFirst(6).joined(separator: "\t")
         } else {
             album = nil
+            trackURI = nil
             title = parts.dropFirst(5).joined(separator: "\t")
         }
         let track = artist.isEmpty ? title : "\(artist) — \(title)"
@@ -3697,6 +3739,7 @@ private enum NowPlayingService {
             isPlaying: isPlaying,
             artworkURL: artworkURL,
             artworkData: nil,
+            trackURI: trackURI,
             duration: duration > 0 ? duration : nil,
             position: position > 0 ? position : nil,
             fetchTime: Date()
@@ -3788,6 +3831,11 @@ private enum NowPlayingService {
                     set trackAlbum to ""
                 end try
                 try
+                    set trackURI to spotify url of current track
+                on error
+                    set trackURI to ""
+                end try
+                try
                     set trackDuration to duration of current track
                 on error
                     set trackDuration to 0
@@ -3797,7 +3845,7 @@ private enum NowPlayingService {
                 on error
                     set trackPosition to 0
                 end try
-                return playerState & sep & artURL & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackAlbum & sep & trackName
+                return playerState & sep & artURL & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackAlbum & sep & trackURI & sep & trackName
             end if
         end tell
     end if
@@ -3831,6 +3879,11 @@ private enum NowPlayingService {
                     set trackAlbum to ""
                 end try
                 try
+                    set trackURI to spotify url of current track
+                on error
+                    set trackURI to ""
+                end try
+                try
                     set trackDuration to duration of current track
                 on error
                     set trackDuration to 0
@@ -3840,7 +3893,7 @@ private enum NowPlayingService {
                 on error
                     set trackPosition to 0
                 end try
-                return playerState & sep & artURL & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackAlbum & sep & trackName
+                return playerState & sep & artURL & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackAlbum & sep & trackURI & sep & trackName
             end if
         end tell
     end if
@@ -3878,7 +3931,7 @@ private enum NowPlayingService {
                 on error
                     set trackPosition to 0
                 end try
-                return playerState & sep & "" & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackAlbum & sep & trackName
+                return playerState & sep & "" & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackAlbum & sep & "" & sep & trackName
             end if
         end tell
     end if
@@ -3916,7 +3969,7 @@ private enum NowPlayingService {
                 on error
                     set trackPosition to 0
                 end try
-                return playerState & sep & "" & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackAlbum & sep & trackName
+                return playerState & sep & "" & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackAlbum & sep & "" & sep & trackName
             end if
         end tell
     end if
@@ -4084,6 +4137,7 @@ private enum MediaRemoteNowPlayingFallback {
             isPlaying: isPlaying,
             artworkURL: nil,
             artworkData: artworkData,
+            trackURI: nil,
             duration: duration,
             position: position,
             fetchTime: Date()
