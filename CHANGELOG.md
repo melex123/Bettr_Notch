@@ -2,6 +2,16 @@
 
 All notable changes to NotchNook are documented here.
 
+## [1.6.0] — 2026-04-10
+
+### Changed
+
+- **Enhanced Now Playing widget** — Richer layout with separate title, artist, and album lines. Artwork enlarged from 48px to 56px. Progress bar now spans full card width.
+- **Smooth track transitions** — Artwork crossfades on track change (no more flash). Text uses opacity transitions for smooth morph between tracks.
+- **Album info** — Now fetches album name via AppleScript from Spotify and Apple Music. Also extracted from MediaRemote framework for other sources.
+
+---
+
 ## [1.5.0] — 2026-03-17
 
 ### Changed
