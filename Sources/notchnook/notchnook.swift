@@ -1033,6 +1033,9 @@ final class NotchModel: ObservableObject {
     @Published var nowPlayingDuration: Double? = nil
     @Published var nowPlayingPosition: Double? = nil
     @Published var nowPlayingArtwork: NSImage? = nil
+    @Published var nowPlayingArtist: String? = nil
+    @Published var nowPlayingTrackTitle: String? = nil
+    @Published var nowPlayingAlbum: String? = nil
     private var nowPlayingPositionFetchTime: Date = .distantPast
     private var lastArtworkSource: String? = nil
     private var artworkTask: Task<Void, Never>?
@@ -1073,7 +1076,7 @@ final class NotchModel: ObservableObject {
     var currentSize: NSSize {
         if expanded {
             var height: CGFloat = 56
-            if preferences.showMediaNowPlaying { height += 80 }
+            if preferences.showMediaNowPlaying { height += 100 }
             if preferences.showFocusTimer { height += 56 }
             if preferences.showClipboardHistory { height += 72 }
             if preferences.showMiniCalendar { height += 64 }
@@ -1262,6 +1265,9 @@ final class NotchModel: ObservableObject {
 
     /// Short track title without the source prefix (e.g. "Spotify • ").
     var nowPlayingShortTitle: String {
+        if let title = nowPlayingTrackTitle, !title.isEmpty {
+            return title
+        }
         if let range = nowPlayingValue.range(of: " • ") {
             return String(nowPlayingValue[range.upperBound...])
         }
@@ -1520,6 +1526,9 @@ final class NotchModel: ObservableObject {
             nowPlayingDuration = nil
             nowPlayingPosition = nil
             nowPlayingArtwork = nil
+            nowPlayingArtist = nil
+            nowPlayingTrackTitle = nil
+            nowPlayingAlbum = nil
             return
         }
 
@@ -1542,11 +1551,13 @@ final class NotchModel: ObservableObject {
                     self.nowPlayingDuration = info.duration
                     self.nowPlayingPosition = info.position
                     self.nowPlayingPositionFetchTime = info.fetchTime
+                    self.nowPlayingArtist = info.artist
+                    self.nowPlayingTrackTitle = info.title
+                    self.nowPlayingAlbum = info.album
 
                     let artworkKey = info.artworkURL ?? (info.source + info.track)
                     if artworkKey != self.lastArtworkSource {
                         self.lastArtworkSource = artworkKey
-                        self.nowPlayingArtwork = nil
                         self.artworkTask?.cancel()
 
                         if let data = info.artworkData, let image = NSImage(data: data) {
@@ -1560,6 +1571,8 @@ final class NotchModel: ObservableObject {
                                     }
                                 } catch {}
                             }
+                        } else {
+                            self.nowPlayingArtwork = nil
                         }
                     }
                 } else {
@@ -1567,6 +1580,9 @@ final class NotchModel: ObservableObject {
                     self.nowPlayingIsPlaying = false
                     self.nowPlayingDuration = nil
                     self.nowPlayingPosition = nil
+                    self.nowPlayingArtist = nil
+                    self.nowPlayingTrackTitle = nil
+                    self.nowPlayingAlbum = nil
                     if self.lastArtworkSource != nil {
                         self.lastArtworkSource = nil
                         self.nowPlayingArtwork = nil
@@ -2694,108 +2710,139 @@ struct NowPlayingStrip: View {
     @ObservedObject var model: NotchModel
     @State private var isCardHovering = false
 
+    private var trackIdentity: String {
+        model.nowPlayingShortTitle + (model.nowPlayingArtist ?? "")
+    }
+
     var body: some View {
-        HStack(spacing: 10) {
-            // Artwork or source icon
-            if let artwork = model.nowPlayingArtwork {
-                Image(nsImage: artwork)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 48, height: 48)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.white.opacity(0.06))
-                    Image(systemName: model.nowPlayingIcon)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.4))
-                }
-                .frame(width: 48, height: 48)
-            }
-
-            // Track info + progress
-            VStack(alignment: .leading, spacing: 4) {
-                Text(model.nowPlayingShortTitle)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(1)
-                    .foregroundStyle(.white.opacity(0.90))
-
-                HStack(spacing: 6) {
-                    if !model.nowPlayingSource.isEmpty {
-                        Text(model.nowPlayingSource)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white.opacity(0.40))
-                            .layoutPriority(1)
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                // Artwork or source icon
+                if let artwork = model.nowPlayingArtwork {
+                    Image(nsImage: artwork)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                        .transition(.opacity)
+                        .id(trackIdentity)
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.white.opacity(0.06))
+                        Image(systemName: model.nowPlayingIcon)
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.4))
                     }
-                    TimelineView(.periodic(from: .now, by: 0.5)) { _ in
-                        if let progress = model.nowPlayingProgress {
-                            GeometryReader { geo in
-                                ZStack(alignment: .leading) {
-                                    Capsule()
-                                        .fill(Color.white.opacity(0.08))
-                                        .frame(height: 4)
-                                    Capsule()
-                                        .fill(Color.white.opacity(0.40))
-                                        .frame(width: max(4, geo.size.width * progress), height: 4)
-                                        .animation(.linear(duration: 0.5), value: progress)
-                                }
-                            }
-                            .frame(height: 4)
+                    .frame(width: 56, height: 56)
+                }
+
+                // Track info
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(model.nowPlayingShortTitle)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(1)
+                        .foregroundStyle(.white.opacity(0.90))
+                        .contentTransition(.opacity)
+
+                    if let artist = model.nowPlayingArtist, !artist.isEmpty {
+                        Text(artist)
+                            .font(.system(size: 11))
+                            .lineLimit(1)
+                            .foregroundStyle(.white.opacity(0.55))
+                            .contentTransition(.opacity)
+                    }
+
+                    HStack(spacing: 4) {
+                        if !model.nowPlayingSource.isEmpty {
+                            Text(model.nowPlayingSource)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.white.opacity(0.40))
+                        }
+                        if let album = model.nowPlayingAlbum, !album.isEmpty {
+                            Text("·")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.white.opacity(0.25))
+                            Text(album)
+                                .font(.system(size: 10))
+                                .lineLimit(1)
+                                .foregroundStyle(.white.opacity(0.35))
+                                .contentTransition(.opacity)
                         }
                     }
                 }
+                .id(trackIdentity)
+                .transition(.opacity)
+
+                Spacer(minLength: 0)
+
+                // Controls
+                HStack(spacing: 8) {
+                    Button { MediaController.previousTrack(source: model.nowPlayingSource) } label: {
+                        Image(systemName: "backward.fill")
+                            .font(.system(size: 11))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white.opacity(0.45))
+                    .hoverLift(scale: 1.08, hoverOpacity: 1.0)
+
+                    Button {
+                        MediaController.playPause(source: model.nowPlayingSource)
+                        model.nowPlayingIsPlaying.toggle()
+                    } label: {
+                        Image(systemName: model.nowPlayingIsPlaying ? "pause.fill" : "play.fill")
+                            .contentTransition(.symbolEffect(.replace))
+                            .font(.system(size: 14, weight: .medium))
+                            .frame(width: 32, height: 32)
+                            .background(Color.white.opacity(0.10), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .hoverLift(scale: 1.06, hoverOpacity: 1.0)
+
+                    Button { MediaController.nextTrack(source: model.nowPlayingSource) } label: {
+                        Image(systemName: "forward.fill")
+                            .font(.system(size: 11))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white.opacity(0.45))
+                    .hoverLift(scale: 1.08, hoverOpacity: 1.0)
+                }
+
+                // Remaining time
+                if let remaining = model.nowPlayingRemainingText {
+                    Text(remaining)
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.35))
+                }
             }
 
-            Spacer(minLength: 0)
-
-            // Controls
-            HStack(spacing: 8) {
-                Button { MediaController.previousTrack(source: model.nowPlayingSource) } label: {
-                    Image(systemName: "backward.fill")
-                        .font(.system(size: 11))
-                        .frame(width: 28, height: 28)
+            // Full-width progress bar
+            TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+                if let progress = model.nowPlayingProgress {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.white.opacity(0.08))
+                                .frame(height: 4)
+                            Capsule()
+                                .fill(Color.white.opacity(0.40))
+                                .frame(width: max(4, geo.size.width * progress), height: 4)
+                                .animation(.linear(duration: 0.5), value: progress)
+                        }
+                    }
+                    .frame(height: 4)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.45))
-                .hoverLift(scale: 1.08, hoverOpacity: 1.0)
-
-                Button {
-                    MediaController.playPause(source: model.nowPlayingSource)
-                    model.nowPlayingIsPlaying.toggle()
-                } label: {
-                    Image(systemName: model.nowPlayingIsPlaying ? "pause.fill" : "play.fill")
-                        .contentTransition(.symbolEffect(.replace))
-                        .font(.system(size: 14, weight: .medium))
-                        .frame(width: 32, height: 32)
-                        .background(Color.white.opacity(0.10), in: Circle())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.85))
-                .hoverLift(scale: 1.06, hoverOpacity: 1.0)
-
-                Button { MediaController.nextTrack(source: model.nowPlayingSource) } label: {
-                    Image(systemName: "forward.fill")
-                        .font(.system(size: 11))
-                        .frame(width: 28, height: 28)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.45))
-                .hoverLift(scale: 1.08, hoverOpacity: 1.0)
-            }
-
-            // Remaining time
-            if let remaining = model.nowPlayingRemainingText {
-                Text(remaining)
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.35))
             }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 10)
         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.white.opacity(isCardHovering ? 0.18 : 0.10), lineWidth: 0.5))
+        .animation(.easeInOut(duration: 0.3), value: trackIdentity)
         .animation(.easeInOut(duration: 0.18), value: isCardHovering)
         .onHover { isCardHovering = $0 }
     }
@@ -3542,6 +3589,9 @@ private enum WeatherService {
 
 private struct NowPlayingInfo {
     let track: String
+    let artist: String?
+    let title: String?
+    let album: String?
     let source: String
     let isPlaying: Bool
     let artworkURL: String?
@@ -3588,6 +3638,9 @@ private enum NowPlayingService {
                 let mrInfo = MediaRemoteNowPlayingFallback.currentInfo()
                 let info = NowPlayingInfo(
                     track: sanitize(tabTitle),
+                    artist: nil,
+                    title: nil,
+                    album: nil,
                     source: source,
                     isPlaying: mrInfo?.isPlaying ?? true,
                     artworkURL: nil,
@@ -3624,11 +3677,22 @@ private enum NowPlayingService {
         let duration = durationInMs ? rawDuration / 1000.0 : rawDuration
         let position = Double(parts[3]) ?? 0
         let artist = parts[4]
-        let title = parts.dropFirst(5).joined(separator: "\t")
+        let album: String?
+        let title: String
+        if parts.count >= 7 {
+            album = parts[5].isEmpty ? nil : parts[5]
+            title = parts.dropFirst(6).joined(separator: "\t")
+        } else {
+            album = nil
+            title = parts.dropFirst(5).joined(separator: "\t")
+        }
         let track = artist.isEmpty ? title : "\(artist) — \(title)"
         guard !track.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         return NowPlayingInfo(
             track: sanitize(track),
+            artist: artist.isEmpty ? nil : artist,
+            title: title.isEmpty ? nil : sanitize(title),
+            album: album,
             source: source,
             isPlaying: isPlaying,
             artworkURL: artworkURL,
@@ -3719,6 +3783,11 @@ private enum NowPlayingService {
                     set artURL to ""
                 end try
                 try
+                    set trackAlbum to album of current track
+                on error
+                    set trackAlbum to ""
+                end try
+                try
                     set trackDuration to duration of current track
                 on error
                     set trackDuration to 0
@@ -3728,7 +3797,7 @@ private enum NowPlayingService {
                 on error
                     set trackPosition to 0
                 end try
-                return playerState & sep & artURL & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackName
+                return playerState & sep & artURL & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackAlbum & sep & trackName
             end if
         end tell
     end if
@@ -3757,6 +3826,11 @@ private enum NowPlayingService {
                     set artURL to ""
                 end try
                 try
+                    set trackAlbum to album of current track
+                on error
+                    set trackAlbum to ""
+                end try
+                try
                     set trackDuration to duration of current track
                 on error
                     set trackDuration to 0
@@ -3766,7 +3840,7 @@ private enum NowPlayingService {
                 on error
                     set trackPosition to 0
                 end try
-                return playerState & sep & artURL & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackName
+                return playerState & sep & artURL & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackAlbum & sep & trackName
             end if
         end tell
     end if
@@ -3790,6 +3864,11 @@ private enum NowPlayingService {
                     set trackName to ""
                 end try
                 try
+                    set trackAlbum to album of current track
+                on error
+                    set trackAlbum to ""
+                end try
+                try
                     set trackDuration to duration of current track
                 on error
                     set trackDuration to 0
@@ -3799,7 +3878,7 @@ private enum NowPlayingService {
                 on error
                     set trackPosition to 0
                 end try
-                return playerState & sep & "" & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackName
+                return playerState & sep & "" & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackAlbum & sep & trackName
             end if
         end tell
     end if
@@ -3823,6 +3902,11 @@ private enum NowPlayingService {
                     set trackName to ""
                 end try
                 try
+                    set trackAlbum to album of current track
+                on error
+                    set trackAlbum to ""
+                end try
+                try
                     set trackDuration to duration of current track
                 on error
                     set trackDuration to 0
@@ -3832,7 +3916,7 @@ private enum NowPlayingService {
                 on error
                     set trackPosition to 0
                 end try
-                return playerState & sep & "" & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackName
+                return playerState & sep & "" & sep & (trackDuration as text) & sep & (trackPosition as text) & sep & trackArtist & sep & trackAlbum & sep & trackName
             end if
         end tell
     end if
@@ -3965,6 +4049,15 @@ private enum MediaRemoteNowPlayingFallback {
             keys: ["kMRMediaRemoteNowPlayingInfoElapsedTime", "elapsedTime", "ElapsedTime"]
         )
 
+        let album = firstString(
+            in: info,
+            keys: [
+                "kMRMediaRemoteNowPlayingInfoAlbum",
+                "album",
+                "Album",
+            ]
+        )
+
         var artworkData: Data? = nil
         for key in ["kMRMediaRemoteNowPlayingInfoArtworkData", "artworkData", "ArtworkData"] {
             if let data = info[key] as? Data {
@@ -3984,6 +4077,9 @@ private enum MediaRemoteNowPlayingFallback {
 
         return NowPlayingInfo(
             track: track,
+            artist: artist,
+            title: title,
+            album: album,
             source: source,
             isPlaying: isPlaying,
             artworkURL: nil,
