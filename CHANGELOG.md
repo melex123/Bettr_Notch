@@ -10,6 +10,23 @@ All notable changes to NotchNook are documented here.
 - **Smooth track transitions** — Artwork crossfades on track change (no more flash). Text uses opacity transitions for smooth morph between tracks.
 - **Album info** — Now fetches album name via AppleScript from Spotify and Apple Music. Also extracted from MediaRemote framework for other sources.
 
+### Added
+
+- **Click to open source app** — Tapping the track title opens Spotify (deep link to current track via URI), Apple Music, or the active browser. Uses `NSWorkspace.openApplication` API.
+
+### Fixed
+
+- **URL scheme validation** — Spotify URI and artwork URL are now validated (`spotify:` and `https:` respectively) before opening/fetching, preventing potential scheme injection from malformed AppleScript responses.
+- **Progress bar phantom spacing** — `TimelineView` is now conditionally rendered only when duration is known, preventing 8pt ghost spacing in the VStack.
+
+### Security Audit
+
+Session security review result: CLEAN. No CRITICAL issues.
+
+Two warnings addressed in this release:
+- Spotify URI scheme validation added (`url.scheme == "spotify"`)
+- Artwork URL scheme validation added (`url.scheme == "https"`)
+
 ---
 
 ## [1.5.0] — 2026-03-17
