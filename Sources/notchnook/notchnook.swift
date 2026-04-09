@@ -1303,6 +1303,10 @@ final class NotchModel: ObservableObject {
         return "-\(minutes):\(String(format: "%02d", seconds))"
     }
 
+    var nowPlayingTrackIdentity: String {
+        nowPlayingShortTitle + (nowPlayingArtist ?? "") + (nowPlayingAlbum ?? "")
+    }
+
     /// Playback progress from 0 to 1.
     var nowPlayingProgress: Double? {
         guard let duration = nowPlayingDuration, duration > 0,
@@ -1310,33 +1314,37 @@ final class NotchModel: ObservableObject {
         return min(1.0, max(0.0, current / duration))
     }
 
+    private func clearNowPlayingMetadata() {
+        nowPlayingValue = "Not playing"
+        nowPlayingIsPlaying = false
+        nowPlayingDuration = nil
+        nowPlayingPosition = nil
+        nowPlayingArtist = nil
+        nowPlayingTrackTitle = nil
+        nowPlayingAlbum = nil
+        nowPlayingTrackURI = nil
+    }
+
     func openNowPlayingSource() {
-        let source = nowPlayingSource
-        if source.hasPrefix("Spotify"),
+        if nowPlayingSource.hasPrefix("Spotify"),
            let uri = nowPlayingTrackURI,
            let url = URL(string: uri),
            url.scheme == "spotify" {
             NSWorkspace.shared.open(url)
             return
         }
+        guard let bundleID = Self.bundleIDForSource(nowPlayingSource),
+              let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return }
+        NSWorkspace.shared.openApplication(at: appURL, configuration: NSWorkspace.OpenConfiguration())
+    }
 
-        let bundleID: String?
-        if source.hasPrefix("Spotify") {
-            bundleID = "com.spotify.client"
-        } else if source.hasPrefix("Music") {
-            bundleID = "com.apple.Music"
-        } else if source.contains("Brave") {
-            bundleID = "com.brave.Browser"
-        } else if source.contains("Chrome") {
-            bundleID = "com.google.Chrome"
-        } else if source.contains("Safari") {
-            bundleID = "com.apple.Safari"
-        } else {
-            bundleID = nil
-        }
-        if let bundleID, let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-            NSWorkspace.shared.openApplication(at: appURL, configuration: NSWorkspace.OpenConfiguration())
-        }
+    private static func bundleIDForSource(_ source: String) -> String? {
+        if source.hasPrefix("Spotify") { return "com.spotify.client" }
+        if source.hasPrefix("Music") { return "com.apple.Music" }
+        if source.contains("Brave") { return "com.brave.Browser" }
+        if source.contains("Chrome") { return "com.google.Chrome" }
+        if source.contains("Safari") { return "com.apple.Safari" }
+        return nil
     }
 
     func toggleFocus() {
@@ -1551,15 +1559,11 @@ final class NotchModel: ObservableObject {
 
     private func maybeRefreshNowPlaying(force: Bool) {
         guard preferences.showMediaNowPlaying else {
-            nowPlayingValue = "Hidden in settings"
-            nowPlayingIsPlaying = false
-            nowPlayingDuration = nil
-            nowPlayingPosition = nil
-            nowPlayingArtwork = nil
-            nowPlayingArtist = nil
-            nowPlayingTrackTitle = nil
-            nowPlayingAlbum = nil
-            nowPlayingTrackURI = nil
+            if nowPlayingValue != "Hidden in settings" {
+                nowPlayingValue = "Hidden in settings"
+                clearNowPlayingMetadata()
+                nowPlayingArtwork = nil
+            }
             return
         }
 
@@ -1577,15 +1581,16 @@ final class NotchModel: ObservableObject {
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 if let info {
-                    self.nowPlayingValue = "\(info.source) • \(info.track)"
-                    self.nowPlayingIsPlaying = info.isPlaying
-                    self.nowPlayingDuration = info.duration
+                    let newValue = "\(info.source) • \(info.track)"
+                    if self.nowPlayingValue != newValue { self.nowPlayingValue = newValue }
+                    if self.nowPlayingIsPlaying != info.isPlaying { self.nowPlayingIsPlaying = info.isPlaying }
+                    if self.nowPlayingDuration != info.duration { self.nowPlayingDuration = info.duration }
                     self.nowPlayingPosition = info.position
                     self.nowPlayingPositionFetchTime = info.fetchTime
-                    self.nowPlayingArtist = info.artist
-                    self.nowPlayingTrackTitle = info.title
-                    self.nowPlayingAlbum = info.album
-                    self.nowPlayingTrackURI = info.trackURI
+                    if self.nowPlayingArtist != info.artist { self.nowPlayingArtist = info.artist }
+                    if self.nowPlayingTrackTitle != info.title { self.nowPlayingTrackTitle = info.title }
+                    if self.nowPlayingAlbum != info.album { self.nowPlayingAlbum = info.album }
+                    if self.nowPlayingTrackURI != info.trackURI { self.nowPlayingTrackURI = info.trackURI }
 
                     let artworkKey = info.artworkURL ?? (info.source + info.track)
                     if artworkKey != self.lastArtworkSource {
@@ -1608,14 +1613,7 @@ final class NotchModel: ObservableObject {
                         }
                     }
                 } else {
-                    self.nowPlayingValue = "Not playing"
-                    self.nowPlayingIsPlaying = false
-                    self.nowPlayingDuration = nil
-                    self.nowPlayingPosition = nil
-                    self.nowPlayingArtist = nil
-                    self.nowPlayingTrackTitle = nil
-                    self.nowPlayingAlbum = nil
-                    self.nowPlayingTrackURI = nil
+                    self.clearNowPlayingMetadata()
                     if self.lastArtworkSource != nil {
                         self.lastArtworkSource = nil
                         self.nowPlayingArtwork = nil
@@ -2743,11 +2741,8 @@ struct NowPlayingStrip: View {
     @ObservedObject var model: NotchModel
     @State private var isCardHovering = false
 
-    private var trackIdentity: String {
-        model.nowPlayingShortTitle + (model.nowPlayingArtist ?? "") + (model.nowPlayingAlbum ?? "")
-    }
-
     var body: some View {
+        let identity = model.nowPlayingTrackIdentity
         VStack(spacing: 8) {
             HStack(spacing: 10) {
                 // Artwork or source icon
@@ -2759,7 +2754,7 @@ struct NowPlayingStrip: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
                         .transition(.opacity)
-                        .id(trackIdentity)
+                        .id(identity)
                 } else {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -2771,7 +2766,6 @@ struct NowPlayingStrip: View {
                     .frame(width: 56, height: 56)
                 }
 
-                // Track info — tap to open source app
                 Button { model.openNowPlayingSource() } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(model.nowPlayingShortTitle)
@@ -2809,7 +2803,7 @@ struct NowPlayingStrip: View {
                 }
                 .buttonStyle(.plain)
                 .hoverLift(scale: 1.02, hoverOpacity: 1.0)
-                .id(trackIdentity)
+                .id(identity)
                 .transition(.opacity)
 
                 Spacer(minLength: 0)
@@ -2881,7 +2875,7 @@ struct NowPlayingStrip: View {
         .padding(.vertical, 10)
         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.white.opacity(isCardHovering ? 0.18 : 0.10), lineWidth: 0.5))
-        .animation(.easeInOut(duration: 0.3), value: trackIdentity)
+        .animation(.easeInOut(duration: 0.3), value: identity)
         .animation(.easeInOut(duration: 0.18), value: isCardHovering)
         .onHover { isCardHovering = $0 }
     }
@@ -3711,29 +3705,16 @@ private enum NowPlayingService {
 
     private static func parseEnhancedResult(_ raw: String, source: String, durationInMs: Bool) -> NowPlayingInfo? {
         let parts = raw.components(separatedBy: "\t")
-        guard parts.count >= 6 else { return nil }
+        guard parts.count >= 8 else { return nil }
         let isPlaying = parts[0] == "playing"
         let artworkURL = parts[1].isEmpty ? nil : parts[1]
         let rawDuration = Double(parts[2]) ?? 0
         let duration = durationInMs ? rawDuration / 1000.0 : rawDuration
         let position = Double(parts[3]) ?? 0
         let artist = parts[4]
-        let album: String?
-        let trackURI: String?
-        let title: String
-        if parts.count >= 8 {
-            album = parts[5].isEmpty ? nil : parts[5]
-            trackURI = parts[6].isEmpty ? nil : parts[6]
-            title = parts.dropFirst(7).joined(separator: "\t")
-        } else if parts.count >= 7 {
-            album = parts[5].isEmpty ? nil : parts[5]
-            trackURI = nil
-            title = parts.dropFirst(6).joined(separator: "\t")
-        } else {
-            album = nil
-            trackURI = nil
-            title = parts.dropFirst(5).joined(separator: "\t")
-        }
+        let album = parts[5].isEmpty ? nil : parts[5]
+        let trackURI = parts[6].isEmpty ? nil : parts[6]
+        let title = parts.dropFirst(7).joined(separator: "\t")
         let track = artist.isEmpty ? title : "\(artist) — \(title)"
         guard !track.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         return NowPlayingInfo(
