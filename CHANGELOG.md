@@ -2,6 +2,24 @@
 
 All notable changes to NotchNook are documented here.
 
+## [1.6.2] — 2026-04-10
+
+### Fixed
+
+- **Click delay on track title** — Removed `.hoverLift()` from track info button. Its `.onLongPressGesture(minimumDuration: .infinity)` caused SwiftUI gesture disambiguation delay on larger tap areas. Moved `.id()` inside button label to prevent view destruction on track change.
+
+---
+
+## [1.6.1] — 2026-04-10
+
+### Changed
+
+- **Code quality improvements** — Extracted `clearNowPlayingMetadata()` helper (3 duplicate blocks → 1), `bundleIDForSource()` static method, `nowPlayingTrackIdentity` computed property on model.
+- **Performance** — Added equality guards on `@Published` property assignments to prevent spurious SwiftUI re-renders every 2.5s during steady-state playback.
+- **Parser cleanup** — Collapsed `parseEnhancedResult` to require `>= 8` fields, removed dead backward-compat branches.
+
+---
+
 ## [1.6.0] — 2026-04-10
 
 ### Changed
